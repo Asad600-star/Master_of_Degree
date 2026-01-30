@@ -17,12 +17,14 @@ ONLY_SYMBOL: str | None = None
 
 
 def build_features_for_symbol(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
-    """
-    df columns expected: date, open, high, low, close, volume (sorted ascending by date)
+    """Build daily features for one symbol.
+
+    Expected columns in df: date, open, high, low, close, volume
+    df must be sorted ascending by date.
     """
     df = df.copy()
 
-    # Keep date as "date" (not timestamp) for consistency with market_ohlcv
+    # Keep date as a pure date (not timestamp)
     df["date"] = pd.to_datetime(df["date"]).dt.date
 
     # Basic returns
@@ -41,43 +43,19 @@ def build_features_for_symbol(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
     # Target: next-day return
     df["target_return_1d"] = df["return_1d"].shift(-1)
 
-    # Add symbol column (IMPORTANT if you build multiple tickers)
+    # Add symbol
     df["symbol"] = symbol
 
-    # Drop rows with NaNs introduced by rolling/lags/target shift
-    df = df.dropna().reset_index(drop=True)
+    # Clean invalid numbers and drop rows with NaNs introduced by rolling/lags/shift
+    df = df.replace([np.inf, -np.inf], np.nan).dropna().reset_index(drop=True)
+
     return df
 
 
-def main() -> None:
-    db_url = os.environ.get("DATABASE_URL")
-    if not db_url:
-        raise RuntimeError("DATABASE_URL is not set. Check your .env file.")
+def ensure_features_table(engine) -> None:
+    """Create features_daily if missing and enforce uniqueness for upserts."""
 
-    engine = create_engine(db_url, pool_pre_ping=True)
-
-    # 1) Get list of symbols to build
-    if ONLY_SYMBOL:
-        symbols = [ONLY_SYMBOL]
-    else:
-        symbols_df = pd.read_sql_query(
-            "SELECT DISTINCT symbol FROM market_ohlcv ORDER BY symbol",
-            con=engine,
-        )
-        symbols = symbols_df["symbol"].tolist()
-
-    if not symbols:
-        raise RuntimeError("No symbols found in market_ohlcv. Run ingest_prices.py first.")
-
-    print(f"[INFO] Building features for symbols: {symbols}")
-
-    # 2) Ensure destination table exists (idempotent) and has a proper uniqueness constraint
-    # IMPORTANT: `CREATE TABLE IF NOT EXISTS ... PRIMARY KEY ...` does NOT retrofit an existing table.
-    # So we:
-    #   - create the table if missing
-    #   - ensure symbol/date are NOT NULL
-    #   - ensure there is a UNIQUE index on (symbol, date) so ON CONFLICT (symbol, date) works
-    ddl_create = """
+    ddl = """
     CREATE TABLE IF NOT EXISTS features_daily (
         symbol text,
         date date,
@@ -104,10 +82,9 @@ def main() -> None:
     """
 
     with engine.begin() as conn:
-        # Create table if missing
-        conn.execute(text(ddl_create))
+        conn.execute(text(ddl))
 
-        # If there are NULLs in symbol/date, we must stop (otherwise NOT NULL/UNIQUE enforcement can fail)
+        # Safety: stop if existing data violates the intended key columns
         nulls = conn.execute(
             text(
                 """
@@ -118,18 +95,20 @@ def main() -> None:
                 """
             )
         ).mappings().one()
+
         if (nulls["symbol_nulls"] or 0) > 0 or (nulls["date_nulls"] or 0) > 0:
             raise RuntimeError(
-                f"features_daily contains NULLs (symbol_nulls={nulls['symbol_nulls']}, date_nulls={nulls['date_nulls']}). "
-                "Fix the data or rebuild the table before enabling constraints."
+                "features_daily contains NULLs in key columns: "
+                f"symbol_nulls={nulls['symbol_nulls']}, date_nulls={nulls['date_nulls']}. "
+                "Fix/delete those rows before enforcing constraints."
             )
 
         # Enforce NOT NULL for conflict keys
         conn.execute(text("ALTER TABLE features_daily ALTER COLUMN symbol SET NOT NULL"))
         conn.execute(text("ALTER TABLE features_daily ALTER COLUMN date SET NOT NULL"))
 
-        # Ensure a UNIQUE index exists so ON CONFLICT (symbol, date) is valid
-        # (Do not rely on a non-unique btree index.)
+        # Ensure a UNIQUE constraint exists for ON CONFLICT (symbol, date)
+        # Use a UNIQUE INDEX because it's idempotent with IF NOT EXISTS.
         conn.execute(
             text(
                 "CREATE UNIQUE INDEX IF NOT EXISTS features_daily_symbol_date_uq "
@@ -137,12 +116,39 @@ def main() -> None:
             )
         )
 
-        # Helpful index for time-slicing across all symbols
+        # Optional helper index for filtering by date ranges across all symbols
         conn.execute(text("CREATE INDEX IF NOT EXISTS features_daily_date_idx ON features_daily(date)"))
 
-    total_rows = 0
+        # If an old non-unique duplicate index exists, remove it (it only slows writes)
+        conn.execute(text("DROP INDEX IF EXISTS features_daily_symbol_date_idx"))
 
-    # 3) Build per symbol and write
+
+def main() -> None:
+    db_url = os.environ.get("DATABASE_URL")
+    if not db_url:
+        raise RuntimeError("DATABASE_URL is not set. Check your .env file.")
+
+    engine = create_engine(db_url, pool_pre_ping=True)
+
+    # Symbols list
+    if ONLY_SYMBOL:
+        symbols = [ONLY_SYMBOL]
+    else:
+        symbols_df = pd.read_sql_query(
+            "SELECT DISTINCT symbol FROM market_ohlcv ORDER BY symbol",
+            con=engine,
+        )
+        symbols = symbols_df["symbol"].tolist()
+
+    if not symbols:
+        raise RuntimeError("No symbols found in market_ohlcv. Run ingest_prices.py first.")
+
+    print(f"[INFO] Building features for symbols: {symbols}")
+
+    # Ensure destination table and constraints exist
+    ensure_features_table(engine)
+
+    # Query template
     q = text(
         """
         SELECT date, open, high, low, close, volume
@@ -152,6 +158,75 @@ def main() -> None:
         """
     )
 
+    cols = [
+        "symbol",
+        "date",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "return_1d",
+        "log_return",
+        "sma_5",
+        "volatility_5",
+        "sma_10",
+        "volatility_10",
+        "sma_20",
+        "volatility_20",
+        "return_lag_1",
+        "return_lag_2",
+        "return_lag_3",
+        "return_lag_4",
+        "return_lag_5",
+        "target_return_1d",
+    ]
+
+    upsert_sql = text(
+        """
+        INSERT INTO features_daily(
+            symbol, date, open, high, low, close, volume,
+            return_1d, log_return,
+            sma_5, volatility_5,
+            sma_10, volatility_10,
+            sma_20, volatility_20,
+            return_lag_1, return_lag_2, return_lag_3, return_lag_4, return_lag_5,
+            target_return_1d
+        )
+        VALUES (
+            :symbol, :date, :open, :high, :low, :close, :volume,
+            :return_1d, :log_return,
+            :sma_5, :volatility_5,
+            :sma_10, :volatility_10,
+            :sma_20, :volatility_20,
+            :return_lag_1, :return_lag_2, :return_lag_3, :return_lag_4, :return_lag_5,
+            :target_return_1d
+        )
+        ON CONFLICT (symbol, date) DO UPDATE SET
+            open = EXCLUDED.open,
+            high = EXCLUDED.high,
+            low = EXCLUDED.low,
+            close = EXCLUDED.close,
+            volume = EXCLUDED.volume,
+            return_1d = EXCLUDED.return_1d,
+            log_return = EXCLUDED.log_return,
+            sma_5 = EXCLUDED.sma_5,
+            volatility_5 = EXCLUDED.volatility_5,
+            sma_10 = EXCLUDED.sma_10,
+            volatility_10 = EXCLUDED.volatility_10,
+            sma_20 = EXCLUDED.sma_20,
+            volatility_20 = EXCLUDED.volatility_20,
+            return_lag_1 = EXCLUDED.return_lag_1,
+            return_lag_2 = EXCLUDED.return_lag_2,
+            return_lag_3 = EXCLUDED.return_lag_3,
+            return_lag_4 = EXCLUDED.return_lag_4,
+            return_lag_5 = EXCLUDED.return_lag_5,
+            target_return_1d = EXCLUDED.target_return_1d;
+        """
+    )
+
+    total_rows = 0
+
     for sym in symbols:
         raw = pd.read_sql_query(q, con=engine, params={"symbol": sym})
 
@@ -160,99 +235,18 @@ def main() -> None:
             continue
 
         feats = build_features_for_symbol(raw, sym)
-
-        # Safety: convert +/-inf to NaN then drop missing rows
-        feats = feats.replace([np.inf, -np.inf], np.nan).dropna().reset_index(drop=True)
-
         if feats.empty:
-            print(f"[WARN] Features empty after dropna/inf-clean for symbol={sym}, skipping")
+            print(f"[WARN] Features empty after cleaning for symbol={sym}, skipping")
             continue
-
-        # Upsert into features_daily (no duplicates, idempotent)
-        cols = [
-            "symbol",
-            "date",
-            "open",
-            "high",
-            "low",
-            "close",
-            "volume",
-            "return_1d",
-            "log_return",
-            "sma_5",
-            "volatility_5",
-            "sma_10",
-            "volatility_10",
-            "sma_20",
-            "volatility_20",
-            "return_lag_1",
-            "return_lag_2",
-            "return_lag_3",
-            "return_lag_4",
-            "return_lag_5",
-            "target_return_1d",
-        ]
 
         feats = feats[cols]
         rows = feats.to_dict(orient="records")
-
-        upsert_sql = text(
-            """
-            INSERT INTO features_daily(
-                symbol, date, open, high, low, close, volume,
-                return_1d, log_return,
-                sma_5, volatility_5,
-                sma_10, volatility_10,
-                sma_20, volatility_20,
-                return_lag_1, return_lag_2, return_lag_3, return_lag_4, return_lag_5,
-                target_return_1d
-            )
-            VALUES (
-                :symbol, :date, :open, :high, :low, :close, :volume,
-                :return_1d, :log_return,
-                :sma_5, :volatility_5,
-                :sma_10, :volatility_10,
-                :sma_20, :volatility_20,
-                :return_lag_1, :return_lag_2, :return_lag_3, :return_lag_4, :return_lag_5,
-                :target_return_1d
-            )
-            ON CONFLICT (symbol, date) DO UPDATE SET
-                open = EXCLUDED.open,
-                high = EXCLUDED.high,
-                low = EXCLUDED.low,
-                close = EXCLUDED.close,
-                volume = EXCLUDED.volume,
-                return_1d = EXCLUDED.return_1d,
-                log_return = EXCLUDED.log_return,
-                sma_5 = EXCLUDED.sma_5,
-                volatility_5 = EXCLUDED.volatility_5,
-                sma_10 = EXCLUDED.sma_10,
-                volatility_10 = EXCLUDED.volatility_10,
-                sma_20 = EXCLUDED.sma_20,
-                volatility_20 = EXCLUDED.volatility_20,
-                return_lag_1 = EXCLUDED.return_lag_1,
-                return_lag_2 = EXCLUDED.return_lag_2,
-                return_lag_3 = EXCLUDED.return_lag_3,
-                return_lag_4 = EXCLUDED.return_lag_4,
-                return_lag_5 = EXCLUDED.return_lag_5,
-                target_return_1d = EXCLUDED.target_return_1d;
-            """
-        )
 
         with engine.begin() as conn:
             conn.execute(upsert_sql, rows)
 
         total_rows += len(feats)
         print(f"[OK] {sym}: features rows={len(feats)}")
-
-    # 4) Ensure composite index exists (best-effort)
-    with engine.begin() as conn:
-        conn.execute(
-            text(
-                "CREATE INDEX IF NOT EXISTS features_daily_symbol_date_idx "
-                "ON features_daily(symbol, date)"
-            )
-        )
 
     print(f"[DONE] features_daily built. total_rows={total_rows}")
 
