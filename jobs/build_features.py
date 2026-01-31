@@ -1,5 +1,3 @@
-import os
-
 import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
@@ -10,10 +8,16 @@ load_dotenv()
 # Feature configuration
 WINDOWS = [5, 10, 20]
 MAX_LAG = 5
+ONLY_SYMBOL: str | None = None  # set e.g. "AAPL" to build only one symbol
 
-# If you want to build for only one symbol, set it here (e.g. "AAPL").
-# Leave as None to build for ALL symbols found in market_ohlcv.
-ONLY_SYMBOL: str | None = None
+
+def get_env(name: str, default: str | None = None) -> str:
+    import os
+
+    v = os.environ.get(name, default)
+    if v is None or str(v).strip() == "":
+        raise RuntimeError(f"Missing required env var: {name}")
+    return str(v).strip()
 
 
 def build_features_for_symbol(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
@@ -48,13 +52,19 @@ def build_features_for_symbol(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
 
     # Clean invalid numbers and drop rows with NaNs introduced by rolling/lags/shift
     df = df.replace([np.inf, -np.inf], np.nan).dropna().reset_index(drop=True)
-
     return df
 
 
 def ensure_features_table(engine) -> None:
-    """Create features_daily if missing and enforce uniqueness for upserts."""
+    """Create features_daily if missing; enforce key + indexes.
 
+    Guarantees:
+    - symbol/date NOT NULL
+    - UNIQUE(symbol,date) exists (required for ON CONFLICT)
+    - helper index on date for filtering
+
+    Idempotent: safe to run every time.
+    """
     ddl = """
     CREATE TABLE IF NOT EXISTS features_daily (
         symbol text,
@@ -84,7 +94,7 @@ def ensure_features_table(engine) -> None:
     with engine.begin() as conn:
         conn.execute(text(ddl))
 
-        # Safety: stop if existing data violates the intended key columns
+        # Safety: stop if existing data violates key columns before enforcing NOT NULL
         nulls = conn.execute(
             text(
                 """
@@ -103,12 +113,10 @@ def ensure_features_table(engine) -> None:
                 "Fix/delete those rows before enforcing constraints."
             )
 
-        # Enforce NOT NULL for conflict keys
         conn.execute(text("ALTER TABLE features_daily ALTER COLUMN symbol SET NOT NULL"))
         conn.execute(text("ALTER TABLE features_daily ALTER COLUMN date SET NOT NULL"))
 
-        # Ensure a UNIQUE constraint exists for ON CONFLICT (symbol, date)
-        # Use a UNIQUE INDEX because it's idempotent with IF NOT EXISTS.
+        # Required for ON CONFLICT (symbol, date)
         conn.execute(
             text(
                 "CREATE UNIQUE INDEX IF NOT EXISTS features_daily_symbol_date_uq "
@@ -116,19 +124,18 @@ def ensure_features_table(engine) -> None:
             )
         )
 
-        # Optional helper index for filtering by date ranges across all symbols
+        # Helper index for time filtering
         conn.execute(text("CREATE INDEX IF NOT EXISTS features_daily_date_idx ON features_daily(date)"))
 
-        # If an old non-unique duplicate index exists, remove it (it only slows writes)
+        # Drop old redundant non-unique index if it exists
         conn.execute(text("DROP INDEX IF EXISTS features_daily_symbol_date_idx"))
 
 
 def main() -> None:
-    db_url = os.environ.get("DATABASE_URL")
-    if not db_url:
-        raise RuntimeError("DATABASE_URL is not set. Check your .env file.")
-
+    db_url = get_env("DATABASE_URL")
     engine = create_engine(db_url, pool_pre_ping=True)
+
+    ensure_features_table(engine)
 
     # Symbols list
     if ONLY_SYMBOL:
@@ -145,10 +152,6 @@ def main() -> None:
 
     print(f"[INFO] Building features for symbols: {symbols}")
 
-    # Ensure destination table and constraints exist
-    ensure_features_table(engine)
-
-    # Query template
     q = text(
         """
         SELECT date, open, high, low, close, volume
