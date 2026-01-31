@@ -125,7 +125,9 @@ def main() -> None:
             conn.execute(upsert_sql, rows)
 
         total += len(df)
-        print(f"[OK] {sym}: upserted {len(df)} rows ({df['date'].min()} -> {df['date'].max()})")
+        print(
+            f"[OK] {sym}: upserted {len(df)} rows ({df['date'].min()} -> {df['date'].max()})"
+        )
 
     print(f"[DONE] total upserted rows: {total}")
 
