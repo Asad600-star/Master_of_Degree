@@ -1,5 +1,5 @@
 import os
-
+from datetime import date, timedelta
 import pandas as pd
 import yfinance as yf
 from dotenv import load_dotenv
@@ -16,7 +16,6 @@ def get_env(name: str, default: str | None = None) -> str:
 
 
 def parse_symbols(s: str) -> list[str]:
-    # allow comma or spaces
     parts = [p.strip() for p in s.replace(" ", ",").split(",")]
     return [p for p in parts if p]
 
@@ -41,6 +40,27 @@ def ensure_market_table(engine) -> None:
         conn.execute(text(ddl))
 
 
+def _get_last_date(engine, symbol: str) -> date | None:
+    q = text("SELECT MAX(date) AS max_date FROM market_ohlcv WHERE symbol = :symbol")
+    with engine.begin() as conn:
+        r = conn.execute(q, {"symbol": symbol}).mappings().one()
+    return r["max_date"]
+
+
+def compute_start_for_symbol(engine, symbol: str, fallback_start: str, lookback_days: int) -> str:
+    """
+    Если данные уже есть — стартуем с (последняя_дата - lookback_days),
+    чтобы пере-залить последние дни и не потерять правки/пропуски.
+    Если данных нет — используем fallback_start.
+    """
+    last = _get_last_date(engine, symbol)
+    if last is None:
+        return fallback_start
+
+    start_dt = last - timedelta(days=max(0, lookback_days))
+    return start_dt.isoformat()
+
+
 def download_one(symbol: str, start: str) -> pd.DataFrame:
     df = (
         yf.download(
@@ -57,11 +77,8 @@ def download_one(symbol: str, start: str) -> pd.DataFrame:
     if df.empty:
         return df
 
-    # yfinance can return MultiIndex columns sometimes; normalize
     if isinstance(df.columns, pd.MultiIndex):
-        df.columns = [
-            (c[0] if c[0] else c[1]) if isinstance(c, tuple) else c for c in df.columns
-        ]
+        df.columns = [(c[0] if c[0] else c[1]) if isinstance(c, tuple) else c for c in df.columns]
 
     rename = {
         "Date": "date",
@@ -86,7 +103,11 @@ def main() -> None:
     db_url = get_env("DATABASE_URL")
     symbols = parse_symbols(get_env("SYMBOLS"))
     start_date = get_env("START_DATE")
-    source = os.environ.get("SOURCE", "yfinance").strip() or "yfinance"
+    source = (os.environ.get("SOURCE", "yfinance") or "yfinance").strip() or "yfinance"
+
+    lookback_days = int(os.environ.get("LOOKBACK_DAYS", "7"))
+    if lookback_days < 0:
+        raise ValueError("LOOKBACK_DAYS must be >= 0")
 
     engine = create_engine(db_url, pool_pre_ping=True)
     ensure_market_table(engine)
@@ -108,13 +129,15 @@ def main() -> None:
     )
 
     print(f"[DB] Using DATABASE_URL={db_url}")
-    print(f"[INFO] Symbols={symbols}, START_DATE={start_date}, SOURCE={source}")
+    print(f"[INFO] Symbols={symbols}, START_DATE={start_date}, LOOKBACK_DAYS={lookback_days}, SOURCE={source}")
 
     total = 0
     for sym in symbols:
-        df = download_one(sym, start_date)
+        sym_start = compute_start_for_symbol(engine, sym, start_date, lookback_days)
+        df = download_one(sym, sym_start)
+
         if df.empty:
-            print(f"[WARN] {sym}: no data, skipping")
+            print(f"[WARN] {sym}: no data for start={sym_start}, skipping")
             continue
 
         rows = df.to_dict(orient="records")
@@ -125,9 +148,7 @@ def main() -> None:
             conn.execute(upsert_sql, rows)
 
         total += len(df)
-        print(
-            f"[OK] {sym}: upserted {len(df)} rows ({df['date'].min()} -> {df['date'].max()})"
-        )
+        print(f"[OK] {sym}: upserted {len(df)} rows ({df['date'].min()} -> {df['date'].max()}) start={sym_start}")
 
     print(f"[DONE] total upserted rows: {total}")
 

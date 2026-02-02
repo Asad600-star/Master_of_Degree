@@ -1,6 +1,7 @@
 import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from datetime import datetime, date as dt_date
 
 import numpy as np
 import pandas as pd
@@ -77,6 +78,24 @@ def get_env(name: str, default: str | None = None) -> str:
     if v is None or str(v).strip() == "":
         raise RuntimeError(f"Missing required env var: {name}")
     return str(v).strip()
+
+
+# Helper: convert pandas/py datetime-like to python date
+def to_pydate(x) -> dt_date:
+    """Convert pandas/py datetime-like value to python `date` safely."""
+    if x is None:
+        raise ValueError("to_pydate: got None")
+
+    if isinstance(x, pd.Timestamp):
+        return x.date()
+
+    if isinstance(x, datetime):
+        return x.date()
+
+    if isinstance(x, dt_date):
+        return x
+
+    return pd.to_datetime(x).date()
 
 
 def rmse(y_true: np.ndarray, y_pred: np.ndarray) -> float:
@@ -378,26 +397,43 @@ def eval_one_split_clf(sym: str, fold: int, split_name: str, task: str, y_true, 
 
 
 def run_single(df: pd.DataFrame, sym: str) -> tuple[list[RowReg], list[RowClf]]:
+    """Single fixed split evaluation WITHOUT target leakage.
+
+    Key rule: targets must be computed *within each split* (train/val/test)
+    so that y for the last rows of train never uses prices from val/test.
+    """
+
     results_reg: list[RowReg] = []
     results_clf: list[RowClf] = []
 
-    # time split
-    train = df[df["date"] <= TRAIN_END]
-    val = df[(df["date"] > TRAIN_END) & (df["date"] <= VAL_END)]
-    test = df[df["date"] > VAL_END]
-
-    if len(train) < 500 or len(val) < 150 or len(test) < 150:
-        print(f"[WARN] {sym}: not enough rows after split: train={len(train)} val={len(val)} test={len(test)}")
+    # First build feature matrix and drop feature NaNs globally (chronology preserved)
+    df2, feature_cols = build_feature_matrix(df)
+    if df2.empty:
+        print(f"[WARN] {sym}: empty after feature drop")
         return results_reg, results_clf
 
-    df2, feature_cols = build_feature_matrix(df)
-    # re-split after NA drop (keeps chronology)
-    train = df2[df2["date"] <= TRAIN_END]
-    val = df2[(df2["date"] > TRAIN_END) & (df2["date"] <= VAL_END)]
-    test = df2[df2["date"] > VAL_END]
+    # Time split on the cleaned feature matrix
+    train = df2[df2["date"] <= TRAIN_END].copy()
+    val = df2[(df2["date"] > TRAIN_END) & (df2["date"] <= VAL_END)].copy()
+    test = df2[df2["date"] > VAL_END].copy()
 
     if len(train) < 500 or len(val) < 150 or len(test) < 150:
-        print(f"[WARN] {sym}: not enough rows after feature drop: train={len(train)} val={len(val)} test={len(test)}")
+        print(
+            f"[WARN] {sym}: not enough rows after feature drop + split: "
+            f"train={len(train)} val={len(val)} test={len(test)}"
+        )
+        return results_reg, results_clf
+
+    # Compute targets PER SPLIT to avoid leakage across split boundaries
+    train = compute_targets(train, HORIZON_DAYS)
+    val = compute_targets(val, HORIZON_DAYS)
+    test = compute_targets(test, HORIZON_DAYS)
+
+    if len(train) < 500 or len(val) < 150 or len(test) < 150:
+        print(
+            f"[WARN] {sym}: not enough rows after target drop: "
+            f"train={len(train)} val={len(val)} test={len(test)}"
+        )
         return results_reg, results_clf
 
     X_train = train[feature_cols].values
@@ -408,22 +444,76 @@ def run_single(df: pd.DataFrame, sym: str) -> tuple[list[RowReg], list[RowClf]]:
     print(f"[ROWS] train={len(train)} val={len(val)} test={len(test)}")
 
     if TASK in ("return", "volatility"):
-        ycol = "target_vol_kd" if TASK == "volatility" else ("target_logret_kd" if RETURN_TARGET_MODE == "log" else "target_return_kd")
+        ycol = (
+            "target_vol_kd"
+            if TASK == "volatility"
+            else (
+                "target_logret_kd" if RETURN_TARGET_MODE == "log" else "target_return_kd"
+            )
+        )
         y_train = train[ycol].values
         y_val = val[ycol].values
         y_test = test[ycol].values
 
         # Baselines
         mean_train = float(np.mean(y_train))
-        eval_one_split_reg(sym, 0, "val", TASK, y_val, np.zeros_like(y_val), len(val), "BASELINE_ZERO", "", results_reg)
-        eval_one_split_reg(sym, 0, "test", TASK, y_test, np.zeros_like(y_test), len(test), "BASELINE_ZERO", "", results_reg)
-        eval_one_split_reg(sym, 0, "val", TASK, y_val, np.full_like(y_val, mean_train, dtype=float), len(val), "BASELINE_MEAN_TRAIN", f"mean={mean_train:.6g}", results_reg)
-        eval_one_split_reg(sym, 0, "test", TASK, y_test, np.full_like(y_test, mean_train, dtype=float), len(test), "BASELINE_MEAN_TRAIN", f"mean={mean_train:.6g}", results_reg)
+        eval_one_split_reg(
+            sym,
+            0,
+            "val",
+            TASK,
+            y_val,
+            np.zeros_like(y_val),
+            len(val),
+            "BASELINE_ZERO",
+            "",
+            results_reg,
+        )
+        eval_one_split_reg(
+            sym,
+            0,
+            "test",
+            TASK,
+            y_test,
+            np.zeros_like(y_test),
+            len(test),
+            "BASELINE_ZERO",
+            "",
+            results_reg,
+        )
+        eval_one_split_reg(
+            sym,
+            0,
+            "val",
+            TASK,
+            y_val,
+            np.full_like(y_val, mean_train, dtype=float),
+            len(val),
+            "BASELINE_MEAN_TRAIN",
+            f"mean={mean_train:.6g}",
+            results_reg,
+        )
+        eval_one_split_reg(
+            sym,
+            0,
+            "test",
+            TASK,
+            y_test,
+            np.full_like(y_test, mean_train, dtype=float),
+            len(test),
+            "BASELINE_MEAN_TRAIN",
+            f"mean={mean_train:.6g}",
+            results_reg,
+        )
 
         for name, model, extra in make_models(TASK):
             model.fit(X_train, y_train)
-            eval_one_split_reg(sym, 0, "val", TASK, y_val, model.predict(X_val), len(val), name, extra, results_reg)
-            eval_one_split_reg(sym, 0, "test", TASK, y_test, model.predict(X_test), len(test), name, extra, results_reg)
+            eval_one_split_reg(
+                sym, 0, "val", TASK, y_val, model.predict(X_val), len(val), name, extra, results_reg
+            )
+            eval_one_split_reg(
+                sym, 0, "test", TASK, y_test, model.predict(X_test), len(test), name, extra, results_reg
+            )
 
     else:  # direction
         y_train = train["target_direction"].values
@@ -431,16 +521,68 @@ def run_single(df: pd.DataFrame, sym: str) -> tuple[list[RowReg], list[RowClf]]:
         y_test = test["target_direction"].values
 
         # Baselines
-        eval_one_split_clf(sym, 0, "val", TASK, y_val, np.zeros_like(y_val), np.zeros_like(y_val, dtype=float), len(val), "BASELINE_ALL_ZERO", 0.5, "", results_clf)
-        eval_one_split_clf(sym, 0, "test", TASK, y_test, np.zeros_like(y_test), np.zeros_like(y_test, dtype=float), len(test), "BASELINE_ALL_ZERO", 0.5, "", results_clf)
+        eval_one_split_clf(
+            sym,
+            0,
+            "val",
+            TASK,
+            y_val,
+            np.zeros_like(y_val),
+            np.zeros_like(y_val, dtype=float),
+            len(val),
+            "BASELINE_ALL_ZERO",
+            0.5,
+            "",
+            results_clf,
+        )
+        eval_one_split_clf(
+            sym,
+            0,
+            "test",
+            TASK,
+            y_test,
+            np.zeros_like(y_test),
+            np.zeros_like(y_test, dtype=float),
+            len(test),
+            "BASELINE_ALL_ZERO",
+            0.5,
+            "",
+            results_clf,
+        )
 
         p = float(np.mean(y_train == 1))
         prob_val = np.full_like(y_val, p, dtype=float)
         prob_test = np.full_like(y_test, p, dtype=float)
         pred_val = (prob_val >= 0.5).astype(int)
         pred_test = (prob_test >= 0.5).astype(int)
-        eval_one_split_clf(sym, 0, "val", TASK, y_val, pred_val, prob_val, len(val), "BASELINE_CONST_FROM_TRAIN", 0.5, f"p_train={p:.3f}", results_clf)
-        eval_one_split_clf(sym, 0, "test", TASK, y_test, pred_test, prob_test, len(test), "BASELINE_CONST_FROM_TRAIN", 0.5, f"p_train={p:.3f}", results_clf)
+        eval_one_split_clf(
+            sym,
+            0,
+            "val",
+            TASK,
+            y_val,
+            pred_val,
+            prob_val,
+            len(val),
+            "BASELINE_CONST_FROM_TRAIN",
+            0.5,
+            f"p_train={p:.3f}",
+            results_clf,
+        )
+        eval_one_split_clf(
+            sym,
+            0,
+            "test",
+            TASK,
+            y_test,
+            pred_test,
+            prob_test,
+            len(test),
+            "BASELINE_CONST_FROM_TRAIN",
+            0.5,
+            f"p_train={p:.3f}",
+            results_clf,
+        )
 
         for name, model, extra in make_models(TASK):
             model.fit(X_train, y_train)
@@ -454,8 +596,34 @@ def run_single(df: pd.DataFrame, sym: str) -> tuple[list[RowReg], list[RowClf]]:
                 pt = 1.0 / (1.0 + np.exp(-st))
 
             t_best, f1_best = _best_threshold_f1(y_val, pv)
-            eval_one_split_clf(sym, 0, "val", TASK, y_val, (pv >= t_best).astype(int), pv, len(val), name, t_best, f"t_f1={f1_best:.4f} {extra}", results_clf)
-            eval_one_split_clf(sym, 0, "test", TASK, y_test, (pt >= t_best).astype(int), pt, len(test), name, t_best, f"t_f1={f1_best:.4f} {extra}", results_clf)
+            eval_one_split_clf(
+                sym,
+                0,
+                "val",
+                TASK,
+                y_val,
+                (pv >= t_best).astype(int),
+                pv,
+                len(val),
+                name,
+                t_best,
+                f"t_f1={f1_best:.4f} {extra}",
+                results_clf,
+            )
+            eval_one_split_clf(
+                sym,
+                0,
+                "test",
+                TASK,
+                y_test,
+                (pt >= t_best).astype(int),
+                pt,
+                len(test),
+                name,
+                t_best,
+                f"t_f1={f1_best:.4f} {extra}",
+                results_clf,
+            )
 
     return results_reg, results_clf
 
@@ -505,7 +673,8 @@ def run_walk(df: pd.DataFrame, sym: str) -> tuple[list[RowReg], list[RowClf]]:
         X_val = va[feature_cols].values
         X_test = te[feature_cols].values
 
-        print(f"\n=== {sym} | fold={fold} | train_end={dates.iloc[i-1].date()} ===")
+        train_end = to_pydate(dates.iloc[i - 1])
+        print(f"\n=== {sym} | fold={fold} | train_end={train_end} ===")
         print(f"[ROWS] train={len(tr)} val={len(va)} test={len(te)}")
 
         if TASK in ("return", "volatility"):
@@ -618,8 +787,7 @@ def main() -> None:
 
         df = df.replace([np.inf, -np.inf], np.nan).dropna().reset_index(drop=True)
         df = add_technical_features(df)
-        df = df.replace([np.inf, -np.inf], np.nan)
-        df = compute_targets(df, HORIZON_DAYS)
+        df = df.replace([np.inf, -np.inf], np.nan).dropna().reset_index(drop=True)
 
         if MODE == "single":
             r, c = run_single(df, sym)

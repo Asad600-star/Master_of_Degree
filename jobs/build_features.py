@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
@@ -5,15 +7,12 @@ from sqlalchemy import create_engine, text
 
 load_dotenv()
 
-# Feature configuration
 WINDOWS = [5, 10, 20]
 MAX_LAG = 5
-ONLY_SYMBOL: str | None = None  # set e.g. "AAPL" to build only one symbol
+ONLY_SYMBOL: str | None = (os.environ.get("ONLY_SYMBOL") or "").strip() or None
 
 
 def get_env(name: str, default: str | None = None) -> str:
-    import os
-
     v = os.environ.get(name, default)
     if v is None or str(v).strip() == "":
         raise RuntimeError(f"Missing required env var: {name}")
@@ -21,50 +20,27 @@ def get_env(name: str, default: str | None = None) -> str:
 
 
 def build_features_for_symbol(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
-    """Build daily features for one symbol.
-
-    Expected columns in df: date, open, high, low, close, volume
-    df must be sorted ascending by date.
-    """
     df = df.copy()
-
-    # Keep date as a pure date (not timestamp)
     df["date"] = pd.to_datetime(df["date"]).dt.date
 
-    # Basic returns
     df["return_1d"] = df["close"].pct_change()
     df["log_return"] = np.log(df["close"]).diff()
 
-    # Rolling features
     for w in WINDOWS:
         df[f"sma_{w}"] = df["close"].rolling(w).mean()
         df[f"volatility_{w}"] = df["return_1d"].rolling(w).std()
 
-    # Lagged returns
     for lag in range(1, MAX_LAG + 1):
         df[f"return_lag_{lag}"] = df["return_1d"].shift(lag)
 
-    # Target: next-day return
     df["target_return_1d"] = df["return_1d"].shift(-1)
-
-    # Add symbol
     df["symbol"] = symbol
 
-    # Clean invalid numbers and drop rows with NaNs introduced by rolling/lags/shift
     df = df.replace([np.inf, -np.inf], np.nan).dropna().reset_index(drop=True)
     return df
 
 
 def ensure_features_table(engine) -> None:
-    """Create features_daily if missing; enforce key + indexes.
-
-    Guarantees:
-    - symbol/date NOT NULL
-    - UNIQUE(symbol,date) exists (required for ON CONFLICT)
-    - helper index on date for filtering
-
-    Idempotent: safe to run every time.
-    """
     ddl = """
     CREATE TABLE IF NOT EXISTS features_daily (
         symbol text,
@@ -90,11 +66,9 @@ def ensure_features_table(engine) -> None:
         target_return_1d double precision
     );
     """
-
     with engine.begin() as conn:
         conn.execute(text(ddl))
 
-        # Safety: stop if existing data violates key columns before enforcing NOT NULL
         nulls = conn.execute(
             text(
                 """
@@ -116,28 +90,21 @@ def ensure_features_table(engine) -> None:
         conn.execute(text("ALTER TABLE features_daily ALTER COLUMN symbol SET NOT NULL"))
         conn.execute(text("ALTER TABLE features_daily ALTER COLUMN date SET NOT NULL"))
 
-        # Required for ON CONFLICT (symbol, date)
         conn.execute(
             text(
                 "CREATE UNIQUE INDEX IF NOT EXISTS features_daily_symbol_date_uq "
                 "ON features_daily(symbol, date)"
             )
         )
-
-        # Helper index for time filtering
         conn.execute(text("CREATE INDEX IF NOT EXISTS features_daily_date_idx ON features_daily(date)"))
-
-        # Drop old redundant non-unique index if it exists
         conn.execute(text("DROP INDEX IF EXISTS features_daily_symbol_date_idx"))
 
 
 def main() -> None:
     db_url = get_env("DATABASE_URL")
     engine = create_engine(db_url, pool_pre_ping=True)
-
     ensure_features_table(engine)
 
-    # Symbols list
     if ONLY_SYMBOL:
         symbols = [ONLY_SYMBOL]
     else:
@@ -162,26 +129,12 @@ def main() -> None:
     )
 
     cols = [
-        "symbol",
-        "date",
-        "open",
-        "high",
-        "low",
-        "close",
-        "volume",
-        "return_1d",
-        "log_return",
-        "sma_5",
-        "volatility_5",
-        "sma_10",
-        "volatility_10",
-        "sma_20",
-        "volatility_20",
-        "return_lag_1",
-        "return_lag_2",
-        "return_lag_3",
-        "return_lag_4",
-        "return_lag_5",
+        "symbol","date","open","high","low","close","volume",
+        "return_1d","log_return",
+        "sma_5","volatility_5",
+        "sma_10","volatility_10",
+        "sma_20","volatility_20",
+        "return_lag_1","return_lag_2","return_lag_3","return_lag_4","return_lag_5",
         "target_return_1d",
     ]
 
@@ -229,10 +182,8 @@ def main() -> None:
     )
 
     total_rows = 0
-
     for sym in symbols:
         raw = pd.read_sql_query(q, con=engine, params={"symbol": sym})
-
         if raw.empty:
             print(f"[WARN] No rows in market_ohlcv for symbol={sym}, skipping")
             continue
