@@ -12,7 +12,15 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from sklearn.linear_model import Ridge, ElasticNet, LogisticRegression
-from sklearn.ensemble import HistGradientBoostingRegressor, HistGradientBoostingClassifier
+from sklearn.ensemble import (
+    HistGradientBoostingRegressor,
+    HistGradientBoostingClassifier,
+    RandomForestRegressor,
+    ExtraTreesRegressor,
+    RandomForestClassifier,
+    ExtraTreesClassifier,
+)
+from sklearn.base import BaseEstimator, RegressorMixin, ClassifierMixin
 
 from sklearn.metrics import (
     mean_absolute_error,
@@ -47,6 +55,27 @@ MODE = (os.environ.get("MODE", "walk") or "walk").strip().lower()
 if MODE not in ("single", "walk"):
     raise ValueError("MODE must be 'single' or 'walk'")
 
+# --------- Production/Inference/Backtest config ---------
+ACTION = (os.environ.get("ACTION", "train") or "train").strip().lower()
+if ACTION not in ("train", "infer", "backtest"):
+    raise ValueError("ACTION must be 'train', 'infer', or 'backtest'")
+
+# Inference/backtest inputs
+METRICS_DIR = Path(os.environ.get("METRICS_DIR", "artifacts"))
+PRED_OUT = Path(os.environ.get("PRED_OUT", "artifacts/predictions_latest.csv"))
+BT_OUT = Path(os.environ.get("BT_OUT", "artifacts/backtest_direction.csv"))
+PRED_OUT.parent.mkdir(parents=True, exist_ok=True)
+BT_OUT.parent.mkdir(parents=True, exist_ok=True)
+
+# Strategy params
+PROB_THRESHOLD = float(os.environ.get("PROB_THRESHOLD", "0.55"))
+if not (0.0 < PROB_THRESHOLD < 1.0):
+    raise ValueError("PROB_THRESHOLD must be in (0,1)")
+
+TRADING_FEE_BPS = float(os.environ.get("TRADING_FEE_BPS", "0.0"))  # per turn, basis points
+if TRADING_FEE_BPS < 0:
+    raise ValueError("TRADING_FEE_BPS must be >= 0")
+
 LOG_TARGET = int(os.environ.get("LOG_TARGET", "0"))  # 1 -> train on log1p(y) when y > -1
 
 # Fixed split boundaries (used in MODE=single)
@@ -68,11 +97,17 @@ if RETURN_TARGET_MODE not in ("log", "simple"):
 
 RANDOM_STATE = int(os.environ.get("SEED", "42"))
 
+
 # Walk-forward knobs (used in MODE=walk)
 WF_MIN_TRAIN_ROWS = int(os.environ.get("WF_MIN_TRAIN_ROWS", "1200"))
 WF_VAL_DAYS = int(os.environ.get("WF_VAL_DAYS", "126"))   # ~6 months trading days
 WF_TEST_DAYS = int(os.environ.get("WF_TEST_DAYS", "126")) # ~6 months trading days
 WF_STEP_DAYS = int(os.environ.get("WF_STEP_DAYS", "63"))  # ~3 months step
+
+# Robustness knobs
+Y_CLIP_PCT = float(os.environ.get("Y_CLIP_PCT", "0.0"))  # e.g. 0.01 clips to [1%,99%]
+if not (0.0 <= Y_CLIP_PCT < 0.5):
+    raise ValueError("Y_CLIP_PCT must be in [0, 0.5)")
 
 
 def get_env(name: str, default: str | None = None) -> str:
@@ -187,12 +222,44 @@ def add_technical_features(df: pd.DataFrame) -> pd.DataFrame:
     df["ret_std_20"] = r.rolling(20, min_periods=20).std(ddof=0)
     df["ret_mean_20"] = r.rolling(20, min_periods=20).mean()
 
+    # -------- Macro interaction / regime features (use only current & past) --------
+    # These require macro/context columns to be present in the incoming df.
+    if "mkt_return_1d" in df.columns:
+        # Rolling correlation and beta to the market (60 trading days)
+        ar = df["return_1d"].astype(float)
+        mr = df["mkt_return_1d"].astype(float)
+        corr60 = ar.rolling(60, min_periods=60).corr(mr)
+        df["corr_mkt_60"] = corr60
+
+        mvar = mr.rolling(60, min_periods=60).var(ddof=0)
+        mcov = ar.rolling(60, min_periods=60).cov(mr, ddof=0)
+        df["beta_mkt_60"] = mcov / mvar.replace(0.0, np.nan)
+
+        # Simple market regime proxy: trend vs. volatility
+        df["mkt_trend_20"] = df.get("mkt_mom_20", np.nan)
+        df["mkt_risk_20"] = df.get("mkt_vol_20", np.nan)
+
+    if "vix_level" in df.columns:
+        vx = df["vix_level"].astype(float)
+        df["vix_log"] = np.log(vx.replace(0.0, np.nan))
+        df["vix_z_60"] = (vx - vx.rolling(60, min_periods=60).mean()) / vx.rolling(60, min_periods=60).std(ddof=0).replace(0.0, np.nan)
+        # Risk-on / risk-off proxy
+        if "mkt_return_1d" in df.columns:
+            df["vix_x_mktret"] = df["vix_return_1d"].astype(float) * df["mkt_return_1d"].astype(float)
+
+    if "irx_level" in df.columns and "tnx_level" in df.columns:
+        irx = df["irx_level"].astype(float)
+        tnx = df["tnx_level"].astype(float)
+        # Yield curve slope proxy (10Y - 3M)
+        df["yc_slope"] = (tnx - irx)
+
     return df
 
 
 def compute_targets(df: pd.DataFrame, horizon: int) -> pd.DataFrame:
     """Targets without leakage."""
     df = df.copy()
+    df["log_return"] = df["log_return"].replace([np.inf, -np.inf], np.nan)
 
     df["target_return_kd"] = df["close"].shift(-horizon) / df["close"] - 1.0
     df["target_logret_kd"] = np.log(df["close"].shift(-horizon) / df["close"]).replace(
@@ -215,6 +282,371 @@ def compute_targets(df: pd.DataFrame, horizon: int) -> pd.DataFrame:
         ]
     ).reset_index(drop=True)
     return df
+def _read_csv_safe(p: Path) -> pd.DataFrame:
+    try:
+        if p.exists():
+            return pd.read_csv(p)
+    except Exception:
+        return pd.DataFrame()
+    return pd.DataFrame()
+
+
+def select_best_models(horizon_days: int) -> dict:
+    """Select best non-baseline models per symbol for direction and volatility.
+
+    Falls back to LOGREG for direction and EXTRATREES for volatility if metrics are missing.
+
+    Returns:
+      {
+        "direction": {symbol: model_name, ...},
+        "volatility": {symbol: model_name, ...},
+      }
+    """
+    d_path = METRICS_DIR / f"metrics_walk_direction_k{horizon_days}.csv"
+    v_path = METRICS_DIR / f"metrics_walk_volatility_k{horizon_days}.csv"
+
+    d = _read_csv_safe(d_path)
+    v = _read_csv_safe(v_path)
+
+    out = {"direction": {}, "volatility": {}}
+
+    # Direction: maximize AUC on test splits
+    if not d.empty and {"symbol", "model", "split", "auc"}.issubset(d.columns):
+        dd = d[d["split"] == "test"].copy()
+        dd = dd[~dd["model"].astype(str).str.startswith("BASELINE")]
+        if not dd.empty:
+            s = (
+                dd.groupby(["symbol", "model"], as_index=False)
+                .agg(auc_mean=("auc", "mean"))
+                .sort_values(["symbol", "auc_mean"], ascending=[True, False])
+            )
+            best = s.groupby("symbol", as_index=False).head(1)
+            out["direction"] = dict(zip(best["symbol"].astype(str), best["model"].astype(str)))
+
+    # Volatility: minimize RMSE on test splits
+    if not v.empty and {"symbol", "model", "split", "rmse"}.issubset(v.columns):
+        vv = v[v["split"] == "test"].copy()
+        vv = vv[~vv["model"].astype(str).str.startswith("BASELINE")]
+        if not vv.empty:
+            s = (
+                vv.groupby(["symbol", "model"], as_index=False)
+                .agg(rmse_mean=("rmse", "mean"))
+                .sort_values(["symbol", "rmse_mean"], ascending=[True, True])
+            )
+            best = s.groupby("symbol", as_index=False).head(1)
+            out["volatility"] = dict(zip(best["symbol"].astype(str), best["model"].astype(str)))
+
+    return out
+
+
+def get_model_by_name(task: str, name: str):
+    """Instantiate a model from make_models() by its name."""
+    for n, model, extra in make_models(task):
+        if n == name:
+            return model, extra
+    raise ValueError(f"Unknown model '{name}' for task='{task}'")
+
+
+def infer_latest_for_symbol(df: pd.DataFrame, sym: str, best_dir: str, best_vol: str) -> dict | None:
+    """Train on all available history (excluding last horizon rows for labels) and predict latest row."""
+    df2, feature_cols = build_feature_matrix(df)
+    if df2.empty or not feature_cols:
+        print(f"[WARN] {sym}: cannot infer (no usable features)")
+        return None
+
+    # We need targets for training labels, but prediction is for the last available feature row.
+    # Create targets on a copy; last HORIZON_DAYS rows will be dropped from the labeled set.
+    labeled = compute_targets(df2.copy(), HORIZON_DAYS)
+    if labeled.empty:
+        print(f"[WARN] {sym}: cannot infer (no labeled rows after target build)")
+        return None
+
+    # Latest feature row (may not have a target)
+    latest = df2.iloc[[-1]].copy()
+
+    X_train = labeled[feature_cols].values
+    X_latest = latest[feature_cols].values
+
+    # ---- Direction ----
+    dir_model, _ = get_model_by_name("direction", best_dir)
+    y_dir = labeled["target_direction"].values
+    dir_model.fit(X_train, y_dir)
+    if hasattr(dir_model, "predict_proba"):
+        p_up = float(dir_model.predict_proba(X_latest)[:, 1][0])
+    else:
+        s = float(dir_model.decision_function(X_latest)[0])
+        p_up = float(1.0 / (1.0 + np.exp(-s)))
+
+    # ---- Volatility ----
+    vol_model, _ = get_model_by_name("volatility", best_vol)
+    y_vol = labeled["target_vol_kd"].values
+    vol_model.fit(X_train, y_vol)
+    vol_pred = float(vol_model.predict(X_latest)[0])
+
+    out = {
+        "symbol": sym,
+        "asof_date": str(to_pydate(latest["date"].iloc[0])),
+        "horizon_days": int(HORIZON_DAYS),
+        "direction_model": str(best_dir),
+        "p_up": p_up,
+        "volatility_model": str(best_vol),
+        "vol_pred": vol_pred,
+    }
+    return out
+
+
+def run_infer(engine) -> None:
+    print(f"[INFO] ACTION=infer HORIZON_DAYS={HORIZON_DAYS}")
+    selected = select_best_models(HORIZON_DAYS)
+
+    # Defaults if metrics not found for a symbol
+    default_dir = os.environ.get("DEFAULT_DIR_MODEL", "LOGREG")
+    default_vol = os.environ.get("DEFAULT_VOL_MODEL", "EXTRATREES")
+
+    only_symbol = os.environ.get("ONLY_SYMBOL")
+    only_symbol = only_symbol.strip() if only_symbol else None
+
+    if only_symbol:
+        symbols = [only_symbol]
+    else:
+        symbols = pd.read_sql_query(
+            """
+            SELECT DISTINCT symbol
+            FROM features_daily
+            WHERE symbol NOT IN ('^VIX','^IRX','^TNX')
+            ORDER BY symbol
+            """,
+            con=engine,
+        )["symbol"].tolist()
+
+    rows = []
+    for sym in symbols:
+        df = pd.read_sql_query(
+            text(
+                """
+                SELECT symbol, date,
+                       open, high, low, close, volume,
+                       return_1d, log_return,
+                       sma_5, volatility_5,
+                       sma_10, volatility_10,
+                       sma_20, volatility_20,
+                       return_lag_1, return_lag_2, return_lag_3, return_lag_4, return_lag_5,
+                       mkt_return_1d, mkt_log_return, mkt_mom_5, mkt_mom_10, mkt_mom_20, mkt_vol_20,
+                       vix_level, vix_return_1d, vix_change_1d,
+                       irx_level, irx_change_1d,
+                       tnx_level, tnx_change_1d
+                FROM features_daily
+                WHERE symbol = :symbol
+                ORDER BY date
+                """
+            ),
+            con=engine,
+            params={"symbol": sym},
+            parse_dates=["date"],
+        )
+        if df.empty:
+            continue
+
+        required_core = ["date", "open", "high", "low", "close", "volume", "return_1d", "log_return"]
+        df = df.replace([np.inf, -np.inf], np.nan)
+        df = df.dropna(subset=required_core).reset_index(drop=True)
+        if df.empty:
+            continue
+
+        df = add_technical_features(df)
+        df = df.replace([np.inf, -np.inf], np.nan)
+
+        best_dir = selected.get("direction", {}).get(sym, default_dir)
+        best_vol = selected.get("volatility", {}).get(sym, default_vol)
+
+        r = infer_latest_for_symbol(df, sym, best_dir, best_vol)
+        if r is not None:
+            rows.append(r)
+
+    if not rows:
+        raise RuntimeError("Inference produced no rows. Check data / symbols.")
+
+    out_df = pd.DataFrame(rows).sort_values(["symbol"]).reset_index(drop=True)
+    out_df.to_csv(PRED_OUT, index=False)
+    print("\n[INFER] Latest predictions:")
+    print(out_df.to_string(index=False))
+    print(f"\n[ARTIFACT] Saved predictions to: {PRED_OUT}")
+
+
+def _max_drawdown(equity: np.ndarray) -> float:
+    equity = np.asarray(equity, dtype=float)
+    peak = np.maximum.accumulate(equity)
+    dd = (equity / np.where(peak == 0, np.nan, peak)) - 1.0
+    return float(np.nanmin(dd))
+
+
+def run_backtest(engine) -> None:
+    """Simple long/cash strategy driven by direction probabilities.
+
+    Signal at t uses features at t to predict direction over HORIZON_DAYS.
+    We apply position for next-day return (1-day holding), which is a standard
+    proxy for trading feasibility.
+    """
+    print(f"[INFO] ACTION=backtest HORIZON_DAYS={HORIZON_DAYS} PROB_THRESHOLD={PROB_THRESHOLD}")
+
+    selected = select_best_models(HORIZON_DAYS)
+    default_dir = os.environ.get("DEFAULT_DIR_MODEL", "LOGREG")
+
+    only_symbol = os.environ.get("ONLY_SYMBOL")
+    only_symbol = only_symbol.strip() if only_symbol else None
+
+    if only_symbol:
+        symbols = [only_symbol]
+    else:
+        symbols = pd.read_sql_query(
+            """
+            SELECT DISTINCT symbol
+            FROM features_daily
+            WHERE symbol NOT IN ('^VIX','^IRX','^TNX')
+            ORDER BY symbol
+            """,
+            con=engine,
+        )["symbol"].tolist()
+
+    bt_rows = []
+    summary_rows = []
+
+    fee = TRADING_FEE_BPS / 10000.0
+
+    for sym in symbols:
+        df = pd.read_sql_query(
+            text(
+                """
+                SELECT symbol, date,
+                       open, high, low, close, volume,
+                       return_1d, log_return,
+                       sma_5, volatility_5,
+                       sma_10, volatility_10,
+                       sma_20, volatility_20,
+                       return_lag_1, return_lag_2, return_lag_3, return_lag_4, return_lag_5,
+                       mkt_return_1d, mkt_log_return, mkt_mom_5, mkt_mom_10, mkt_mom_20, mkt_vol_20,
+                       vix_level, vix_return_1d, vix_change_1d,
+                       irx_level, irx_change_1d,
+                       tnx_level, tnx_change_1d
+                FROM features_daily
+                WHERE symbol = :symbol
+                ORDER BY date
+                """
+            ),
+            con=engine,
+            params={"symbol": sym},
+            parse_dates=["date"],
+        )
+        if df.empty:
+            continue
+
+        required_core = ["date", "open", "high", "low", "close", "volume", "return_1d", "log_return"]
+        df = df.replace([np.inf, -np.inf], np.nan)
+        df = df.dropna(subset=required_core).reset_index(drop=True)
+        if df.empty:
+            continue
+
+        df = add_technical_features(df)
+        df = df.replace([np.inf, -np.inf], np.nan)
+
+        df2, feature_cols = build_feature_matrix(df)
+        if df2.empty or not feature_cols:
+            continue
+
+        labeled = compute_targets(df2.copy(), HORIZON_DAYS)
+        if labeled.empty:
+            continue
+
+        # Use walk-forward style: expanding fit each day is expensive.
+        # We do a single fit on the first 70% of labeled data and test on the remaining 30%.
+        n = len(labeled)
+        split = int(n * 0.7)
+        tr = labeled.iloc[:split].copy()
+        te = labeled.iloc[split:].copy()
+
+        X_tr = tr[feature_cols].values
+        y_tr = tr["target_direction"].values
+
+        model_name = selected.get("direction", {}).get(sym, default_dir)
+        model, _ = get_model_by_name("direction", model_name)
+        model.fit(X_tr, y_tr)
+
+        X_te = te[feature_cols].values
+        if hasattr(model, "predict_proba"):
+            p = model.predict_proba(X_te)[:, 1]
+        else:
+            s = model.decision_function(X_te)
+            p = 1.0 / (1.0 + np.exp(-s))
+
+        # Position for next-day return
+        pos = (p >= PROB_THRESHOLD).astype(int)
+        # next-day simple return aligned to current row: use te['return_1d'].shift(-1)
+        r_next = te["return_1d"].shift(-1).values
+
+        # Remove last row (no next-day return)
+        pos = pos[:-1]
+        p = p[:-1]
+        dates = te["date"].iloc[:-1].apply(to_pydate).astype(str).values
+        r_next = r_next[:-1]
+
+        # Transaction cost on position changes
+        pos_prev = np.concatenate([[0], pos[:-1]])
+        turnover = np.abs(pos - pos_prev)
+        strat_ret = pos * r_next - turnover * fee
+
+        equity = np.cumprod(1.0 + np.nan_to_num(strat_ret, nan=0.0))
+
+        # Metrics
+        daily = np.nan_to_num(strat_ret, nan=0.0)
+        mu = float(np.mean(daily))
+        sig = float(np.std(daily, ddof=0))
+        sharpe = float((mu / sig) * np.sqrt(252.0)) if sig > 0 else float("nan")
+        mdd = _max_drawdown(equity)
+        total_return = float(equity[-1] - 1.0) if len(equity) else float("nan")
+
+        summary_rows.append(
+            {
+                "symbol": sym,
+                "model": model_name,
+                "threshold": PROB_THRESHOLD,
+                "fee_bps": TRADING_FEE_BPS,
+                "n_days": int(len(daily)),
+                "total_return": total_return,
+                "sharpe": sharpe,
+                "max_drawdown": mdd,
+                "avg_pos": float(np.mean(pos)) if len(pos) else float("nan"),
+            }
+        )
+
+        for i in range(len(daily)):
+            bt_rows.append(
+                {
+                    "symbol": sym,
+                    "date": dates[i],
+                    "p_up": float(p[i]),
+                    "pos": int(pos[i]),
+                    "ret_next": float(r_next[i]) if np.isfinite(r_next[i]) else float("nan"),
+                    "strat_ret": float(daily[i]),
+                }
+            )
+
+    if not bt_rows:
+        raise RuntimeError("Backtest produced no rows. Check data / symbols.")
+
+    bt_df = pd.DataFrame(bt_rows)
+    sm_df = pd.DataFrame(summary_rows).sort_values(["symbol"]).reset_index(drop=True)
+
+    # Save both: summary and detailed trades
+    sm_path = BT_OUT
+    trades_path = BT_OUT.with_name(BT_OUT.stem + "_trades.csv")
+
+    sm_df.to_csv(sm_path, index=False)
+    bt_df.to_csv(trades_path, index=False)
+
+    print("\n[BACKTEST] Summary:")
+    print(sm_df.to_string(index=False))
+    print(f"\n[ARTIFACT] Saved backtest summary to: {sm_path}")
+    print(f"[ARTIFACT] Saved backtest trades to: {trades_path}")
 
 
 def print_reg(name: str, y_true: np.ndarray, y_pred: np.ndarray) -> dict:
@@ -327,17 +759,142 @@ def build_feature_matrix(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
         "vol_z_20",
         "ret_std_20",
         "ret_mean_20",
+        # macro/context (from features_daily)
+        "mkt_return_1d",
+        "mkt_log_return",
+        "mkt_mom_5",
+        "mkt_mom_10",
+        "mkt_mom_20",
+        "mkt_vol_20",
+        "vix_level",
+        "vix_return_1d",
+        "vix_change_1d",
+        "irx_level",
+        "irx_change_1d",
+        "tnx_level",
+        "tnx_change_1d",
+        # macro interaction / regime
+        "corr_mkt_60",
+        "beta_mkt_60",
+        "mkt_trend_20",
+        "mkt_risk_20",
+        "vix_log",
+        "vix_z_60",
+        "vix_x_mktret",
+        "yc_slope",
     ]
+
     df = df.copy()
     df = df.replace([np.inf, -np.inf], np.nan)
-    df = df.dropna(subset=feature_cols).reset_index(drop=True)
-    return df, feature_cols
+
+    # Make feature set robust:
+    # - keep only columns that exist
+    # - drop columns that are entirely NaN (common when macro series weren't ingested)
+    missing = [c for c in feature_cols if c not in df.columns]
+    usable = [c for c in feature_cols if c in df.columns and df[c].notna().any()]
+    dropped_all_nan = [c for c in feature_cols if c in df.columns and not df[c].notna().any()]
+
+    if missing:
+        print(f"[WARN] build_feature_matrix: missing columns will be ignored: {missing}")
+    if dropped_all_nan:
+        print(f"[WARN] build_feature_matrix: all-NaN columns will be ignored: {dropped_all_nan}")
+
+    if not usable:
+        # Nothing usable -> empty
+        return df.iloc[0:0].copy(), []
+
+    df = df.dropna(subset=usable).reset_index(drop=True)
+    return df, usable
+
+
+def clip_targets(y: np.ndarray, pct: float) -> tuple[np.ndarray, str]:
+    """Winsorize targets to reduce extreme-outlier impact (train-only)."""
+    if pct <= 0.0:
+        return y, ""
+    y = np.asarray(y, dtype=float)
+    lo = float(np.nanquantile(y, pct))
+    hi = float(np.nanquantile(y, 1.0 - pct))
+    y2 = np.clip(y, lo, hi)
+    return y2, f"y_clip={pct:.3g}[{lo:.4g},{hi:.4g}]"
+
+
+class HybridRidgeHGBRegressor(BaseEstimator, RegressorMixin):
+    """Two-stage hybrid: Ridge captures linear structure, HGB fits residuals."""
+
+    def __init__(self, ridge_alpha: float = 5.0):
+        self.ridge_alpha = ridge_alpha
+        self.ridge_ = Pipeline(
+            [("scaler", StandardScaler()), ("model", Ridge(alpha=ridge_alpha))]
+        )
+        self.hgb_ = HistGradientBoostingRegressor(
+            max_depth=3,
+            learning_rate=0.03,
+            max_iter=2000,
+            l2_regularization=1.0,
+            min_samples_leaf=30,
+            random_state=RANDOM_STATE,
+        )
+
+    def fit(self, X, y):
+        self.ridge_.fit(X, y)
+        resid = y - self.ridge_.predict(X)
+        self.hgb_.fit(X, resid)
+        return self
+
+    def predict(self, X):
+        return self.ridge_.predict(X) + self.hgb_.predict(X)
+
+
+class SoftVoteLogregHGBClassifier(BaseEstimator, ClassifierMixin):
+    """Soft-voting hybrid: average probabilities of LogReg and HGB."""
+
+    def __init__(self, logreg_C: float = 0.5):
+        self.logreg_C = logreg_C
+        self.logreg_ = Pipeline(
+            [
+                ("scaler", StandardScaler()),
+                (
+                    "model",
+                    LogisticRegression(
+                        max_iter=5000,
+                        C=logreg_C,
+                        class_weight="balanced",
+                        random_state=RANDOM_STATE,
+                    ),
+                ),
+            ]
+        )
+        self.hgb_ = HistGradientBoostingClassifier(
+            max_depth=3,
+            learning_rate=0.03,
+            max_iter=2000,
+            l2_regularization=1.0,
+            min_samples_leaf=30,
+            random_state=RANDOM_STATE,
+        )
+
+    def fit(self, X, y):
+        self.logreg_.fit(X, y)
+        self.hgb_.fit(X, y)
+        return self
+
+    def predict_proba(self, X):
+        p1 = self.logreg_.predict_proba(X)
+        p2 = self.hgb_.predict_proba(X)
+        return 0.5 * p1 + 0.5 * p2
+
+    def predict(self, X):
+        return (self.predict_proba(X)[:, 1] >= 0.5).astype(int)
 
 
 def make_models(task: str):
     if task in ("return", "volatility"):
         ridge = Pipeline(
-            [("scaler", StandardScaler()), ("model", Ridge(alpha=5.0, random_state=RANDOM_STATE))]
+            [("scaler", StandardScaler()), ("model", Ridge(alpha=5.0))]
+        )
+        # Safer ridge baseline: higher regularization
+        ridge_safe = Pipeline(
+            [("scaler", StandardScaler()), ("model", Ridge(alpha=20.0))]
         )
         enet = Pipeline(
             [
@@ -356,10 +913,28 @@ def make_models(task: str):
             min_samples_leaf=30,
             random_state=RANDOM_STATE,
         )
+        rf = RandomForestRegressor(
+            n_estimators=800,
+            min_samples_leaf=10,
+            max_features="sqrt",
+            random_state=RANDOM_STATE,
+            n_jobs=-1,
+        )
+        et = ExtraTreesRegressor(
+            n_estimators=1200,
+            min_samples_leaf=10,
+            max_features="sqrt",
+            random_state=RANDOM_STATE,
+            n_jobs=-1,
+        )
         return [
             ("RIDGE", ridge, "alpha=5.0"),
+            ("RIDGE_SAFE", ridge_safe, "alpha=20.0"),
             ("ELASTICNET", enet, "alpha=1e-3 l1=0.2"),
             ("HGB", hgb, "lr=0.03 depth=3 l2=1.0 leaf=30"),
+            ("RANDOMFOREST", rf, "n=800 leaf=10"),
+            ("EXTRATREES", et, "n=1200 leaf=10"),
+            ("HYBRID_RIDGE_HGB", HybridRidgeHGBRegressor(ridge_alpha=5.0), "ridge+HGB(residuals)"),
         ]
 
     if task == "direction":
@@ -380,9 +955,28 @@ def make_models(task: str):
             min_samples_leaf=30,
             random_state=RANDOM_STATE,
         )
+        rf = RandomForestClassifier(
+            n_estimators=800,
+            min_samples_leaf=10,
+            max_features="sqrt",
+            class_weight="balanced_subsample",
+            random_state=RANDOM_STATE,
+            n_jobs=-1,
+        )
+        et = ExtraTreesClassifier(
+            n_estimators=1200,
+            min_samples_leaf=10,
+            max_features="sqrt",
+            class_weight="balanced",
+            random_state=RANDOM_STATE,
+            n_jobs=-1,
+        )
         return [
             ("LOGREG", logreg, "C=0.5 balanced"),
             ("HGB", hgb, "lr=0.03 depth=3 l2=1.0 leaf=30"),
+            ("RANDOMFOREST", rf, "n=800 leaf=10 balanced"),
+            ("EXTRATREES", et, "n=1200 leaf=10 balanced"),
+            ("HYBRID_SOFTVOTE", SoftVoteLogregHGBClassifier(logreg_C=0.5), "avg(LogReg,HGB)"),
         ]
 
     raise ValueError(f"Unknown task={task}")
@@ -554,12 +1148,14 @@ def run_single(df: pd.DataFrame, sym: str) -> tuple[list[RowReg], list[RowClf]]:
             results_reg,
         )
 
+        # Robust target clipping (train-only)
+        y_train_fit, clip_extra = clip_targets(y_train, Y_CLIP_PCT)
         # Optional log-target training (scores always computed on original scale)
-        use_log = bool(LOG_TARGET) and (float(np.min(y_train)) > -0.999999)
+        use_log = bool(LOG_TARGET) and (float(np.min(y_train_fit)) > -0.999999)
         if bool(LOG_TARGET) and not use_log:
             print(f"[WARN] LOG_TARGET=1 but y_train has values <= -1; skipping log1p transform")
 
-        y_fit = np.log1p(y_train) if use_log else y_train
+        y_fit = np.log1p(y_train_fit) if use_log else y_train_fit
 
         for name, model, extra in make_models(TASK):
             model.fit(X_train, y_fit)
@@ -571,8 +1167,8 @@ def run_single(df: pd.DataFrame, sym: str) -> tuple[list[RowReg], list[RowClf]]:
                 pv = np.expm1(pv)
                 pt = np.expm1(pt)
 
-            eval_one_split_reg(sym, 0, "val", TASK, y_val, pv, len(val), name, extra, results_reg)
-            eval_one_split_reg(sym, 0, "test", TASK, y_test, pt, len(test), name, extra, results_reg)
+            eval_one_split_reg(sym, 0, "val", TASK, y_val, pv, len(val), name, " ".join([extra, clip_extra]).strip(), results_reg)
+            eval_one_split_reg(sym, 0, "test", TASK, y_test, pt, len(test), name, " ".join([extra, clip_extra]).strip(), results_reg)
 
     else:  # direction
         y_train = train["target_direction"].values
@@ -771,12 +1367,14 @@ def run_walk(df: pd.DataFrame, sym: str) -> tuple[list[RowReg], list[RowClf]]:
             eval_one_split_reg(sym, fold, "val", TASK, y_val, np.full_like(y_val, mean_train, dtype=float), len(va), "BASELINE_MEAN_TRAIN", f"mean={mean_train:.6g}", results_reg)
             eval_one_split_reg(sym, fold, "test", TASK, y_test, np.full_like(y_test, mean_train, dtype=float), len(te), "BASELINE_MEAN_TRAIN", f"mean={mean_train:.6g}", results_reg)
 
+            # Robust target clipping (train-only)
+            y_train_fit, clip_extra = clip_targets(y_train, Y_CLIP_PCT)
             # Optional log-target training (scores always computed on original scale)
-            use_log = bool(LOG_TARGET) and (float(np.min(y_train)) > -0.999999)
+            use_log = bool(LOG_TARGET) and (float(np.min(y_train_fit)) > -0.999999)
             if bool(LOG_TARGET) and not use_log:
                 print(f"[WARN] LOG_TARGET=1 but y_train has values <= -1; skipping log1p transform")
 
-            y_fit = np.log1p(y_train) if use_log else y_train
+            y_fit = np.log1p(y_train_fit) if use_log else y_train_fit
 
             for name, model, extra in make_models(TASK):
                 model.fit(X_train, y_fit)
@@ -788,8 +1386,8 @@ def run_walk(df: pd.DataFrame, sym: str) -> tuple[list[RowReg], list[RowClf]]:
                     pv = np.expm1(pv)
                     pt = np.expm1(pt)
 
-                eval_one_split_reg(sym, fold, "val", TASK, y_val, pv, len(va), name, extra, results_reg)
-                eval_one_split_reg(sym, fold, "test", TASK, y_test, pt, len(te), name, extra, results_reg)
+                eval_one_split_reg(sym, fold, "val", TASK, y_val, pv, len(va), name, " ".join([extra, clip_extra]).strip(), results_reg)
+                eval_one_split_reg(sym, fold, "test", TASK, y_test, pt, len(te), name, " ".join([extra, clip_extra]).strip(), results_reg)
 
         else:
             y_train = tr["target_direction"].values
@@ -834,11 +1432,24 @@ def main() -> None:
 
     engine = create_engine(db_url, pool_pre_ping=True)
 
+    # Production actions
+    if ACTION == "infer":
+        run_infer(engine)
+        return
+    if ACTION == "backtest":
+        run_backtest(engine)
+        return
+
     if only_symbol:
         symbols = [only_symbol]
     else:
         symbols = pd.read_sql_query(
-            "SELECT DISTINCT symbol FROM features_daily ORDER BY symbol",
+            """
+            SELECT DISTINCT symbol
+            FROM features_daily
+            WHERE symbol NOT IN ('^VIX','^IRX','^TNX')
+            ORDER BY symbol
+            """,
             con=engine,
         )["symbol"].tolist()
 
@@ -867,7 +1478,11 @@ def main() -> None:
                        sma_5, volatility_5,
                        sma_10, volatility_10,
                        sma_20, volatility_20,
-                       return_lag_1, return_lag_2, return_lag_3, return_lag_4, return_lag_5
+                       return_lag_1, return_lag_2, return_lag_3, return_lag_4, return_lag_5,
+                       mkt_return_1d, mkt_log_return, mkt_mom_5, mkt_mom_10, mkt_mom_20, mkt_vol_20,
+                       vix_level, vix_return_1d, vix_change_1d,
+                       irx_level, irx_change_1d,
+                       tnx_level, tnx_change_1d
                 FROM features_daily
                 WHERE symbol = :symbol
                 ORDER BY date
@@ -882,9 +1497,28 @@ def main() -> None:
             print(f"[WARN] {sym}: empty, skip")
             continue
 
-        df = df.replace([np.inf, -np.inf], np.nan).dropna().reset_index(drop=True)
+        # Do NOT dropna() across all columns here: macro/context columns can be NULL
+        # (different start dates, rolling windows). We only require core OHLCV and
+        # base return columns to be present; the final feature selection/drop is
+        # handled inside build_feature_matrix().
+        df = df.replace([np.inf, -np.inf], np.nan)
+
+        required_core = ["date", "open", "high", "low", "close", "volume", "return_1d", "log_return"]
+        missing_core = [c for c in required_core if c not in df.columns]
+        if missing_core:
+            print(f"[WARN] {sym}: missing core columns in features_daily query: {missing_core}")
+            continue
+
+        df = df.dropna(subset=required_core).reset_index(drop=True)
+        if df.empty:
+            print(f"[WARN] {sym}: empty after dropping NA core columns")
+            continue
+
         df = add_technical_features(df)
-        df = df.replace([np.inf, -np.inf], np.nan).dropna().reset_index(drop=True)
+        df = df.replace([np.inf, -np.inf], np.nan)
+        # Keep rows even if some engineered/macro features are NA; build_feature_matrix will decide.
+
+        print(f"[INFO] {sym}: rows after core cleaning + technical features = {len(df)}")
 
         if MODE == "single":
             r, c = run_single(df, sym)
@@ -902,14 +1536,37 @@ def main() -> None:
 
         # quick summary across folds (test only)
         if MODE == "walk":
+            test_df = out_df[out_df["split"] == "test"].copy()
+
             s = (
-                out_df[out_df["split"] == "test"]
+                test_df
                 .groupby(["symbol", "model"], as_index=False)
-                .agg(rmse_mean=("rmse", "mean"), rmse_std=("rmse", "std"), r2_mean=("r2", "mean"))
+                .agg(
+                    rmse_mean=("rmse", "mean"),
+                    rmse_std=("rmse", "std"),
+                    r2_mean=("r2", "mean"),
+                    mae_mean=("mae", "mean"),
+                )
                 .sort_values(["symbol", "rmse_mean"])
             )
-            print("\n[SUMMARY] Walk-forward TEST (mean/std across folds):")
-            print(s.to_string(index=False))
+
+            base = (
+                s[s["model"] == "BASELINE_MEAN_TRAIN"]
+                [["symbol", "rmse_mean"]]
+                .rename(columns={"rmse_mean": "rmse_base"})
+            )
+            s2 = s.merge(base, on="symbol", how="left")
+            s2["rmse_impr_pct_vs_base"] = 100.0 * (s2["rmse_base"] - s2["rmse_mean"]) / s2["rmse_base"]
+            s2 = s2.drop(columns=["rmse_base"]).sort_values(["symbol", "rmse_mean"]).reset_index(drop=True)
+
+            print("\n[SUMMARY] Walk-forward TEST (mean/std across folds) + improvement vs BASELINE_MEAN_TRAIN:")
+            print(s2.to_string(index=False))
+
+            non_base = s2[~s2["model"].str.startswith("BASELINE")].copy()
+            if not non_base.empty:
+                best = non_base.sort_values(["symbol", "rmse_mean"]).groupby("symbol", as_index=False).head(1)
+                print("\n[BEST] Per symbol (excluding baselines):")
+                print(best[["symbol", "model", "rmse_mean", "rmse_impr_pct_vs_base", "r2_mean"]].to_string(index=False))
 
     else:
         if not all_clf:
@@ -918,14 +1575,37 @@ def main() -> None:
         out_df.to_csv(OUT_PATH, index=False)
 
         if MODE == "walk":
+            test_df = out_df[out_df["split"] == "test"].copy()
+
             s = (
-                out_df[out_df["split"] == "test"]
+                test_df
                 .groupby(["symbol", "model"], as_index=False)
-                .agg(auc_mean=("auc", "mean"), auc_std=("auc", "std"), balacc_mean=("balacc", "mean"))
+                .agg(
+                    auc_mean=("auc", "mean"),
+                    auc_std=("auc", "std"),
+                    balacc_mean=("balacc", "mean"),
+                    f1_mean=("f1", "mean"),
+                )
                 .sort_values(["symbol", "auc_mean"], ascending=[True, False])
             )
-            print("\n[SUMMARY] Walk-forward TEST (mean/std across folds):")
-            print(s.to_string(index=False))
+
+            base = (
+                s[s["model"] == "BASELINE_ALL_ZERO"]
+                [["symbol", "auc_mean"]]
+                .rename(columns={"auc_mean": "auc_base"})
+            )
+            s2 = s.merge(base, on="symbol", how="left")
+            s2["auc_delta_vs_base"] = s2["auc_mean"] - s2["auc_base"]
+            s2 = s2.drop(columns=["auc_base"]).sort_values(["symbol", "auc_mean"], ascending=[True, False]).reset_index(drop=True)
+
+            print("\n[SUMMARY] Walk-forward TEST (mean/std across folds) + delta vs BASELINE_ALL_ZERO:")
+            print(s2.to_string(index=False))
+
+            non_base = s2[~s2["model"].str.startswith("BASELINE")].copy()
+            if not non_base.empty:
+                best = non_base.sort_values(["symbol", "auc_mean"], ascending=[True, False]).groupby("symbol", as_index=False).head(1)
+                print("\n[BEST] Per symbol (excluding baselines):")
+                print(best[["symbol", "model", "auc_mean", "auc_delta_vs_base", "balacc_mean"]].to_string(index=False))
 
     print("\n[DONE] Finished.")
     print(f"[ARTIFACT] Saved metrics to: {OUT_PATH}")

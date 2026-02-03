@@ -196,7 +196,12 @@ def main() -> None:
         symbols = [ONLY_SYMBOL]
     else:
         symbols_df = pd.read_sql_query(
-            "SELECT DISTINCT symbol FROM market_ohlcv ORDER BY symbol",
+            """
+            SELECT DISTINCT symbol
+            FROM market_ohlcv
+            WHERE symbol NOT IN ('^VIX','^IRX','^TNX')
+            ORDER BY symbol
+            """,
             con=engine,
         )
         symbols = symbols_df["symbol"].tolist()
@@ -299,7 +304,7 @@ def main() -> None:
 
     total_rows = 0
     for sym in symbols:
-        raw = pd.read_sql_query(q, con=engine, params={"symbol": sym})
+        raw = pd.read_sql_query(q, con=engine, params={"symbol": sym}, parse_dates=["date"])
         # Need enough history for rolling windows + lags
         min_rows = max(WINDOWS) + MAX_LAG + 5
         if len(raw) < min_rows:
@@ -311,21 +316,73 @@ def main() -> None:
 
         feats = build_features_for_symbol(raw, sym)
 
-        # join macro context by date
+        # join macro context by date (left join keeps asset dates)
         feats = feats.merge(macro, on="date", how="left")
 
+        # --- FIX: ensure macro features are not all-NaN ---
+        macro_cols = [
+            'mkt_return_1d','mkt_log_return','mkt_mom_5','mkt_mom_10','mkt_mom_20','mkt_vol_20',
+            'vix_level','vix_return_1d','vix_change_1d','vix_log','vix_z_60','vix_x_mktret',
+            'irx_level','irx_change_1d',
+            'tnx_level','tnx_change_1d',
+            'corr_mkt_60','beta_mkt_60',
+            'mkt_trend_20','mkt_risk_20',
+            'yc_slope'
+        ]
+        present_macro_cols = [c for c in macro_cols if c in feats.columns]
+        if present_macro_cols:
+            feats = feats.sort_values('date')
+            feats[present_macro_cols] = (
+                feats[present_macro_cols]
+                .replace([np.inf, -np.inf], np.nan)
+                .ffill()
+                .bfill()
+            )
+        # -------------------------------------------------
+
         if feats.empty:
-            print(f"[WARN] Features empty after cleaning for symbol={sym}, skipping")
+            print(f"[WARN] Features empty after base feature engineering for symbol={sym}, skipping")
             continue
 
-        feats = feats.replace([np.inf, -np.inf], np.nan).dropna().reset_index(drop=True)
+        # IMPORTANT:
+        # Do NOT dropna() after merging macro. Macro columns can legitimately have NaNs
+        # (different start dates, rolling windows). We'll keep them in DB and let
+        # the training script decide which rows are usable (it already dropna() on feature_cols).
+        feats = feats.replace([np.inf, -np.inf], np.nan).reset_index(drop=True)
 
-        # ВАЖНО: если после merge+dropna всё исчезло — пропускаем, иначе SQLAlchemy падает
-        if feats.empty:
-            print(f"[WARN] {sym}: empty after merging macro + dropna, skipping")
-            continue
-
+        # Keep required base columns; macro columns may remain NaN
         feats = feats[cols]
+
+        # Sanity: ensure key columns are present
+        if feats["symbol"].isna().any() or feats["date"].isna().any():
+            print(f"[WARN] {sym}: produced NULLs in symbol/date, skipping")
+            continue
+
+        # --- FINAL FIX ---
+        # Drop rows ONLY if causal core is broken.
+        # Rolling / lag / macro features are allowed to be NaN at this stage.
+        core_cols = [
+            "symbol",
+            "date",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "return_1d",
+            "log_return",
+            "target_return_1d",
+        ]
+
+        feats = feats.dropna(subset=core_cols).reset_index(drop=True)
+
+        if feats.empty:
+            print(f"[WARN] {sym}: empty after core-only dropna, skipping")
+            continue
+        # -----------------
+
+
+
         rows = feats.to_dict(orient="records")
 
         if not rows:

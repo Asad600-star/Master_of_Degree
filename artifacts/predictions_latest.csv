@@ -1,0 +1,2 @@
+symbol,asof_date,horizon_days,direction_model,p_up,volatility_model,vol_pred
+AAPL,2026-01-30,5,HYBRID_SOFTVOTE,0.31257719703215564,EXTRATREES,0.013718514662674751
