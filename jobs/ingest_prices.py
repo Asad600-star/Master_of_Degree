@@ -49,10 +49,23 @@ def _get_last_date(engine, symbol: str) -> date | None:
 
 def compute_start_for_symbol(engine, symbol: str, fallback_start: str, lookback_days: int) -> str:
     """
-    Если данные уже есть — стартуем с (последняя_дата - lookback_days),
-    чтобы пере-залить последние дни и не потерять правки/пропуски.
-    Если данных нет — используем fallback_start.
+    If data exists — start from (last_date - lookback_days) to safely re-upsert recent rows.
+    If no data — use fallback_start.
+
+    You can force a full backfill (ignore last_date) via:
+      - INGEST_FULL_REFRESH=1  (for all symbols)
+      - INGEST_FORCE_SYMBOLS=AAPL,TSLA,^GSPC (comma-separated)
     """
+    # Force full backfill for all symbols
+    full_refresh = (os.environ.get("INGEST_FULL_REFRESH", "0") or "0").strip() == "1"
+
+    # Force full backfill for selected symbols
+    force_symbols_raw = (os.environ.get("INGEST_FORCE_SYMBOLS", "") or "").strip()
+    force_symbols = set(parse_symbols(force_symbols_raw)) if force_symbols_raw else set()
+
+    if full_refresh or (symbol in force_symbols):
+        return fallback_start
+
     last = _get_last_date(engine, symbol)
     if last is None:
         return fallback_start
@@ -108,6 +121,8 @@ def main() -> None:
     lookback_days = int(os.environ.get("LOOKBACK_DAYS", "7"))
     if lookback_days < 0:
         raise ValueError("LOOKBACK_DAYS must be >= 0")
+    full_refresh = (os.environ.get("INGEST_FULL_REFRESH", "0") or "0").strip() == "1"
+    force_symbols_raw = (os.environ.get("INGEST_FORCE_SYMBOLS", "") or "").strip()
 
     engine = create_engine(db_url, pool_pre_ping=True)
     ensure_market_table(engine)
@@ -129,7 +144,10 @@ def main() -> None:
     )
 
     print(f"[DB] Using DATABASE_URL={db_url}")
-    print(f"[INFO] Symbols={symbols}, START_DATE={start_date}, LOOKBACK_DAYS={lookback_days}, SOURCE={source}")
+    print(
+        f"[INFO] Symbols={symbols}, START_DATE={start_date}, LOOKBACK_DAYS={lookback_days}, SOURCE={source}, "
+        f"INGEST_FULL_REFRESH={int(full_refresh)}, INGEST_FORCE_SYMBOLS='{force_symbols_raw}'"
+    )
 
     total = 0
     for sym in symbols:

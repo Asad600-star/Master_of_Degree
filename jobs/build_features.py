@@ -19,6 +19,73 @@ def get_env(name: str, default: str | None = None) -> str:
     return str(v).strip()
 
 
+def load_macro_frame(engine) -> pd.DataFrame:
+    """Build macro/market context features by date (causal, no leakage)."""
+    macro_symbols = ["^GSPC", "^VIX", "^IRX", "^TNX"]
+
+    m = pd.read_sql_query(
+        text(
+            """
+            SELECT date, symbol, close
+            FROM market_ohlcv
+            WHERE symbol = ANY(:symbols)
+            ORDER BY date
+            """
+        ),
+        con=engine,
+        params={"symbols": macro_symbols},
+        parse_dates=["date"],
+    )
+
+    if m.empty:
+        raise RuntimeError(
+            "Macro symbols not found in market_ohlcv. "
+            "Run ingest_prices.py with ^GSPC,^VIX,^IRX,^TNX in SYMBOLS."
+        )
+
+    m["date"] = pd.to_datetime(m["date"]).dt.date
+
+    piv = (
+        m.pivot_table(index="date", columns="symbol", values="close", aggfunc="last")
+        .sort_index()
+        .ffill()
+    )
+
+    out = pd.DataFrame({"date": piv.index})
+
+    # Market (^GSPC)
+    if "^GSPC" in piv.columns:
+        sp = piv["^GSPC"].astype(float)
+        out["mkt_close"] = sp
+        out["mkt_return_1d"] = sp.pct_change()
+        out["mkt_log_return"] = np.log(sp).diff()
+        out["mkt_mom_5"] = sp.pct_change(5)
+        out["mkt_mom_10"] = sp.pct_change(10)
+        out["mkt_mom_20"] = sp.pct_change(20)
+        out["mkt_vol_20"] = out["mkt_return_1d"].rolling(20, min_periods=20).std(ddof=0)
+
+    # VIX (^VIX)
+    if "^VIX" in piv.columns:
+        vx = piv["^VIX"].astype(float)
+        out["vix_level"] = vx
+        out["vix_return_1d"] = vx.pct_change()
+        out["vix_change_1d"] = vx.diff()
+
+    # Rates (^IRX, ^TNX)
+    if "^IRX" in piv.columns:
+        irx = piv["^IRX"].astype(float)
+        out["irx_level"] = irx
+        out["irx_change_1d"] = irx.diff()
+
+    if "^TNX" in piv.columns:
+        tnx = piv["^TNX"].astype(float)
+        out["tnx_level"] = tnx
+        out["tnx_change_1d"] = tnx.diff()
+
+    out = out.replace([np.inf, -np.inf], np.nan)
+    return out
+
+
 def build_features_for_symbol(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
     df = df.copy()
     df["date"] = pd.to_datetime(df["date"]).dt.date
@@ -68,6 +135,26 @@ def ensure_features_table(engine) -> None:
     """
     with engine.begin() as conn:
         conn.execute(text(ddl))
+
+        # Ensure macro columns exist (safe for existing DB)
+        macro_cols = [
+            ("mkt_close", "double precision"),
+            ("mkt_return_1d", "double precision"),
+            ("mkt_log_return", "double precision"),
+            ("mkt_mom_5", "double precision"),
+            ("mkt_mom_10", "double precision"),
+            ("mkt_mom_20", "double precision"),
+            ("mkt_vol_20", "double precision"),
+            ("vix_level", "double precision"),
+            ("vix_return_1d", "double precision"),
+            ("vix_change_1d", "double precision"),
+            ("irx_level", "double precision"),
+            ("irx_change_1d", "double precision"),
+            ("tnx_level", "double precision"),
+            ("tnx_change_1d", "double precision"),
+        ]
+        for col, typ in macro_cols:
+            conn.execute(text(f"ALTER TABLE features_daily ADD COLUMN IF NOT EXISTS {col} {typ}"))
 
         nulls = conn.execute(
             text(
@@ -119,6 +206,9 @@ def main() -> None:
 
     print(f"[INFO] Building features for symbols: {symbols}")
 
+    macro = load_macro_frame(engine)
+    print(f"[INFO] Loaded macro frame rows={len(macro)}")
+
     q = text(
         """
         SELECT date, open, high, low, close, volume
@@ -129,13 +219,17 @@ def main() -> None:
     )
 
     cols = [
-        "symbol","date","open","high","low","close","volume",
-        "return_1d","log_return",
-        "sma_5","volatility_5",
-        "sma_10","volatility_10",
-        "sma_20","volatility_20",
-        "return_lag_1","return_lag_2","return_lag_3","return_lag_4","return_lag_5",
+        "symbol", "date", "open", "high", "low", "close", "volume",
+        "return_1d", "log_return",
+        "sma_5", "volatility_5",
+        "sma_10", "volatility_10",
+        "sma_20", "volatility_20",
+        "return_lag_1", "return_lag_2", "return_lag_3", "return_lag_4", "return_lag_5",
         "target_return_1d",
+        "mkt_close", "mkt_return_1d", "mkt_log_return", "mkt_mom_5", "mkt_mom_10", "mkt_mom_20", "mkt_vol_20",
+        "vix_level", "vix_return_1d", "vix_change_1d",
+        "irx_level", "irx_change_1d",
+        "tnx_level", "tnx_change_1d",
     ]
 
     upsert_sql = text(
@@ -148,6 +242,10 @@ def main() -> None:
             sma_20, volatility_20,
             return_lag_1, return_lag_2, return_lag_3, return_lag_4, return_lag_5,
             target_return_1d
+            , mkt_close, mkt_return_1d, mkt_log_return, mkt_mom_5, mkt_mom_10, mkt_mom_20, mkt_vol_20
+            , vix_level, vix_return_1d, vix_change_1d
+            , irx_level, irx_change_1d
+            , tnx_level, tnx_change_1d
         )
         VALUES (
             :symbol, :date, :open, :high, :low, :close, :volume,
@@ -157,6 +255,10 @@ def main() -> None:
             :sma_20, :volatility_20,
             :return_lag_1, :return_lag_2, :return_lag_3, :return_lag_4, :return_lag_5,
             :target_return_1d
+            , :mkt_close, :mkt_return_1d, :mkt_log_return, :mkt_mom_5, :mkt_mom_10, :mkt_mom_20, :mkt_vol_20
+            , :vix_level, :vix_return_1d, :vix_change_1d
+            , :irx_level, :irx_change_1d
+            , :tnx_level, :tnx_change_1d
         )
         ON CONFLICT (symbol, date) DO UPDATE SET
             open = EXCLUDED.open,
@@ -177,32 +279,64 @@ def main() -> None:
             return_lag_3 = EXCLUDED.return_lag_3,
             return_lag_4 = EXCLUDED.return_lag_4,
             return_lag_5 = EXCLUDED.return_lag_5,
-            target_return_1d = EXCLUDED.target_return_1d;
+            target_return_1d = EXCLUDED.target_return_1d,
+            mkt_close = EXCLUDED.mkt_close,
+            mkt_return_1d = EXCLUDED.mkt_return_1d,
+            mkt_log_return = EXCLUDED.mkt_log_return,
+            mkt_mom_5 = EXCLUDED.mkt_mom_5,
+            mkt_mom_10 = EXCLUDED.mkt_mom_10,
+            mkt_mom_20 = EXCLUDED.mkt_mom_20,
+            mkt_vol_20 = EXCLUDED.mkt_vol_20,
+            vix_level = EXCLUDED.vix_level,
+            vix_return_1d = EXCLUDED.vix_return_1d,
+            vix_change_1d = EXCLUDED.vix_change_1d,
+            irx_level = EXCLUDED.irx_level,
+            irx_change_1d = EXCLUDED.irx_change_1d,
+            tnx_level = EXCLUDED.tnx_level,
+            tnx_change_1d = EXCLUDED.tnx_change_1d;
         """
     )
 
     total_rows = 0
     for sym in symbols:
         raw = pd.read_sql_query(q, con=engine, params={"symbol": sym})
+        # Need enough history for rolling windows + lags
+        min_rows = max(WINDOWS) + MAX_LAG + 5
+        if len(raw) < min_rows:
+            print(f"[WARN] {sym}: too few rows in market_ohlcv ({len(raw)}<{min_rows}), skipping")
+            continue
         if raw.empty:
             print(f"[WARN] No rows in market_ohlcv for symbol={sym}, skipping")
             continue
 
         feats = build_features_for_symbol(raw, sym)
+
+        # join macro context by date
+        feats = feats.merge(macro, on="date", how="left")
+
         if feats.empty:
             print(f"[WARN] Features empty after cleaning for symbol={sym}, skipping")
             continue
 
+        feats = feats.replace([np.inf, -np.inf], np.nan).dropna().reset_index(drop=True)
+
+        # ВАЖНО: если после merge+dropna всё исчезло — пропускаем, иначе SQLAlchemy падает
+        if feats.empty:
+            print(f"[WARN] {sym}: empty after merging macro + dropna, skipping")
+            continue
+
         feats = feats[cols]
         rows = feats.to_dict(orient="records")
+
+        if not rows:
+            print(f"[WARN] {sym}: no rows to upsert, skipping")
+            continue
 
         with engine.begin() as conn:
             conn.execute(upsert_sql, rows)
 
         total_rows += len(feats)
         print(f"[OK] {sym}: features rows={len(feats)}")
-
-    print(f"[DONE] features_daily built. total_rows={total_rows}")
 
 
 if __name__ == "__main__":
