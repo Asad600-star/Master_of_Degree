@@ -47,6 +47,8 @@ MODE = (os.environ.get("MODE", "walk") or "walk").strip().lower()
 if MODE not in ("single", "walk"):
     raise ValueError("MODE must be 'single' or 'walk'")
 
+LOG_TARGET = int(os.environ.get("LOG_TARGET", "0"))  # 1 -> train on log1p(y) when y > -1
+
 # Fixed split boundaries (used in MODE=single)
 TRAIN_END = (os.environ.get("TRAIN_END", "2022-12-31") or "2022-12-31").strip()
 VAL_END = (os.environ.get("VAL_END", "2024-12-31") or "2024-12-31").strip()
@@ -412,6 +414,14 @@ def run_single(df: pd.DataFrame, sym: str) -> tuple[list[RowReg], list[RowClf]]:
         print(f"[WARN] {sym}: empty after feature drop")
         return results_reg, results_clf
 
+    # Causal persistence predictors (use ONLY past information)
+    df2 = df2.copy()
+    df2["persist_return_kd"] = df2["close"] / df2["close"].shift(HORIZON_DAYS) - 1.0
+    df2["persist_logret_kd"] = np.log(df2["close"] / df2["close"].shift(HORIZON_DAYS)).replace(
+        [np.inf, -np.inf], np.nan
+    )
+    df2["persist_vol_kd"] = df2["log_return"].rolling(HORIZON_DAYS, min_periods=HORIZON_DAYS).std(ddof=0)
+
     # Time split on the cleaned feature matrix
     train = df2[df2["date"] <= TRAIN_END].copy()
     val = df2[(df2["date"] > TRAIN_END) & (df2["date"] <= VAL_END)].copy()
@@ -455,8 +465,46 @@ def run_single(df: pd.DataFrame, sym: str) -> tuple[list[RowReg], list[RowClf]]:
         y_val = val[ycol].values
         y_test = test[ycol].values
 
-        # Baselines
+        # BASELINE_PERSIST: causal persistence using past k-day return / past k-day vol proxy
+        if TASK == "volatility":
+            pcol = "persist_vol_kd"
+        else:
+            pcol = "persist_logret_kd" if (RETURN_TARGET_MODE == "log") else "persist_return_kd"
+
+        y_persist_val = val[pcol].values
+        y_persist_test = test[pcol].values
+
+        # Fill any missing persistence values (early rows) with train mean
         mean_train = float(np.mean(y_train))
+        y_persist_val = np.where(np.isfinite(y_persist_val), y_persist_val, mean_train)
+        y_persist_test = np.where(np.isfinite(y_persist_test), y_persist_test, mean_train)
+
+        eval_one_split_reg(
+            sym,
+            0,
+            "val",
+            TASK,
+            y_val,
+            y_persist_val,
+            len(val),
+            "BASELINE_PERSIST",
+            f"pcol={pcol}",
+            results_reg,
+        )
+        eval_one_split_reg(
+            sym,
+            0,
+            "test",
+            TASK,
+            y_test,
+            y_persist_test,
+            len(test),
+            "BASELINE_PERSIST",
+            f"pcol={pcol}",
+            results_reg,
+        )
+
+        # Baselines
         eval_one_split_reg(
             sym,
             0,
@@ -506,14 +554,25 @@ def run_single(df: pd.DataFrame, sym: str) -> tuple[list[RowReg], list[RowClf]]:
             results_reg,
         )
 
+        # Optional log-target training (scores always computed on original scale)
+        use_log = bool(LOG_TARGET) and (float(np.min(y_train)) > -0.999999)
+        if bool(LOG_TARGET) and not use_log:
+            print(f"[WARN] LOG_TARGET=1 but y_train has values <= -1; skipping log1p transform")
+
+        y_fit = np.log1p(y_train) if use_log else y_train
+
         for name, model, extra in make_models(TASK):
-            model.fit(X_train, y_train)
-            eval_one_split_reg(
-                sym, 0, "val", TASK, y_val, model.predict(X_val), len(val), name, extra, results_reg
-            )
-            eval_one_split_reg(
-                sym, 0, "test", TASK, y_test, model.predict(X_test), len(test), name, extra, results_reg
-            )
+            model.fit(X_train, y_fit)
+
+            pv = model.predict(X_val)
+            pt = model.predict(X_test)
+
+            if use_log:
+                pv = np.expm1(pv)
+                pt = np.expm1(pt)
+
+            eval_one_split_reg(sym, 0, "val", TASK, y_val, pv, len(val), name, extra, results_reg)
+            eval_one_split_reg(sym, 0, "test", TASK, y_test, pt, len(test), name, extra, results_reg)
 
     else:  # direction
         y_train = train["target_direction"].values
@@ -637,6 +696,14 @@ def run_walk(df: pd.DataFrame, sym: str) -> tuple[list[RowReg], list[RowClf]]:
         print(f"[WARN] {sym}: empty after feature drop")
         return results_reg, results_clf
 
+    # Causal persistence predictors (use ONLY past information)
+    df2 = df2.copy()
+    df2["persist_return_kd"] = df2["close"] / df2["close"].shift(HORIZON_DAYS) - 1.0
+    df2["persist_logret_kd"] = np.log(df2["close"] / df2["close"].shift(HORIZON_DAYS)).replace(
+        [np.inf, -np.inf], np.nan
+    )
+    df2["persist_vol_kd"] = df2["log_return"].rolling(HORIZON_DAYS, min_periods=HORIZON_DAYS).std(ddof=0)
+
     dates = df2["date"].reset_index(drop=True)
     n = len(df2)
 
@@ -684,15 +751,45 @@ def run_walk(df: pd.DataFrame, sym: str) -> tuple[list[RowReg], list[RowClf]]:
             y_test = te[ycol].values
 
             mean_train = float(np.mean(y_train))
+
+            # BASELINE_PERSIST: causal persistence using past k-day return / past k-day vol proxy
+            if TASK == "volatility":
+                pcol = "persist_vol_kd"
+            else:
+                pcol = "persist_logret_kd" if (RETURN_TARGET_MODE == "log") else "persist_return_kd"
+
+            y_persist_val = va[pcol].values
+            y_persist_test = te[pcol].values
+            y_persist_val = np.where(np.isfinite(y_persist_val), y_persist_val, mean_train)
+            y_persist_test = np.where(np.isfinite(y_persist_test), y_persist_test, mean_train)
+
+            eval_one_split_reg(sym, fold, "val", TASK, y_val, y_persist_val, len(va), "BASELINE_PERSIST", f"pcol={pcol}", results_reg)
+            eval_one_split_reg(sym, fold, "test", TASK, y_test, y_persist_test, len(te), "BASELINE_PERSIST", f"pcol={pcol}", results_reg)
+
             eval_one_split_reg(sym, fold, "val", TASK, y_val, np.zeros_like(y_val), len(va), "BASELINE_ZERO", "", results_reg)
             eval_one_split_reg(sym, fold, "test", TASK, y_test, np.zeros_like(y_test), len(te), "BASELINE_ZERO", "", results_reg)
             eval_one_split_reg(sym, fold, "val", TASK, y_val, np.full_like(y_val, mean_train, dtype=float), len(va), "BASELINE_MEAN_TRAIN", f"mean={mean_train:.6g}", results_reg)
             eval_one_split_reg(sym, fold, "test", TASK, y_test, np.full_like(y_test, mean_train, dtype=float), len(te), "BASELINE_MEAN_TRAIN", f"mean={mean_train:.6g}", results_reg)
 
+            # Optional log-target training (scores always computed on original scale)
+            use_log = bool(LOG_TARGET) and (float(np.min(y_train)) > -0.999999)
+            if bool(LOG_TARGET) and not use_log:
+                print(f"[WARN] LOG_TARGET=1 but y_train has values <= -1; skipping log1p transform")
+
+            y_fit = np.log1p(y_train) if use_log else y_train
+
             for name, model, extra in make_models(TASK):
-                model.fit(X_train, y_train)
-                eval_one_split_reg(sym, fold, "val", TASK, y_val, model.predict(X_val), len(va), name, extra, results_reg)
-                eval_one_split_reg(sym, fold, "test", TASK, y_test, model.predict(X_test), len(te), name, extra, results_reg)
+                model.fit(X_train, y_fit)
+
+                pv = model.predict(X_val)
+                pt = model.predict(X_test)
+
+                if use_log:
+                    pv = np.expm1(pv)
+                    pt = np.expm1(pt)
+
+                eval_one_split_reg(sym, fold, "val", TASK, y_val, pv, len(va), name, extra, results_reg)
+                eval_one_split_reg(sym, fold, "test", TASK, y_test, pt, len(te), name, extra, results_reg)
 
         else:
             y_train = tr["target_direction"].values
