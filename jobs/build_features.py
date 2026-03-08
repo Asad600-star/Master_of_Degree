@@ -84,6 +84,7 @@ def load_macro_frame(engine) -> pd.DataFrame:
         out["tnx_change_1d"] = tnx.diff().to_numpy()
 
     out = out.reset_index(drop=True)
+    return out
 
 
 def build_features_for_symbol(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
