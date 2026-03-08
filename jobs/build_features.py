@@ -43,7 +43,7 @@ def load_macro_frame(engine) -> pd.DataFrame:
             "Run ingest_prices.py with ^GSPC,^VIX,^IRX,^TNX in SYMBOLS."
         )
 
-    m["date"] = pd.to_datetime(m["date"]).dt.date
+    m["date"] = pd.to_datetime(m["date"]).dt.normalize()
 
     piv = (
         m.pivot_table(index="date", columns="symbol", values="close", aggfunc="last")
@@ -51,44 +51,44 @@ def load_macro_frame(engine) -> pd.DataFrame:
         .ffill()
     )
 
-    out = pd.DataFrame({"date": piv.index})
+    out = pd.DataFrame(index=piv.index.copy())
+    out["date"] = pd.to_datetime(out.index).normalize()
 
     # Market (^GSPC)
     if "^GSPC" in piv.columns:
         sp = piv["^GSPC"].astype(float)
-        out["mkt_close"] = sp
-        out["mkt_return_1d"] = sp.pct_change()
-        out["mkt_log_return"] = np.log(sp).diff()
-        out["mkt_mom_5"] = sp.pct_change(5)
-        out["mkt_mom_10"] = sp.pct_change(10)
-        out["mkt_mom_20"] = sp.pct_change(20)
+        out["mkt_close"] = sp.to_numpy()
+        out["mkt_return_1d"] = sp.pct_change().to_numpy()
+        out["mkt_log_return"] = np.log(sp).diff().to_numpy()
+        out["mkt_mom_5"] = sp.pct_change(5).to_numpy()
+        out["mkt_mom_10"] = sp.pct_change(10).to_numpy()
+        out["mkt_mom_20"] = sp.pct_change(20).to_numpy()
         out["mkt_vol_20"] = out["mkt_return_1d"].rolling(20, min_periods=20).std(ddof=0)
 
     # VIX (^VIX)
     if "^VIX" in piv.columns:
         vx = piv["^VIX"].astype(float)
-        out["vix_level"] = vx
-        out["vix_return_1d"] = vx.pct_change()
-        out["vix_change_1d"] = vx.diff()
+        out["vix_level"] = vx.to_numpy()
+        out["vix_return_1d"] = vx.pct_change().to_numpy()
+        out["vix_change_1d"] = vx.diff().to_numpy()
 
     # Rates (^IRX, ^TNX)
     if "^IRX" in piv.columns:
         irx = piv["^IRX"].astype(float)
-        out["irx_level"] = irx
-        out["irx_change_1d"] = irx.diff()
+        out["irx_level"] = irx.to_numpy()
+        out["irx_change_1d"] = irx.diff().to_numpy()
 
     if "^TNX" in piv.columns:
         tnx = piv["^TNX"].astype(float)
-        out["tnx_level"] = tnx
-        out["tnx_change_1d"] = tnx.diff()
+        out["tnx_level"] = tnx.to_numpy()
+        out["tnx_change_1d"] = tnx.diff().to_numpy()
 
-    out = out.replace([np.inf, -np.inf], np.nan)
-    return out
+    out = out.reset_index(drop=True)
 
 
 def build_features_for_symbol(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
     df = df.copy()
-    df["date"] = pd.to_datetime(df["date"]).dt.date
+    df["date"] = pd.to_datetime(df["date"]).dt.normalize()
 
     df["return_1d"] = df["close"].pct_change()
     df["log_return"] = np.log(df["close"]).diff()
@@ -371,10 +371,18 @@ def main() -> None:
             "volume",
             "return_1d",
             "log_return",
-            "target_return_1d",
         ]
 
         feats = feats.dropna(subset=core_cols).reset_index(drop=True)
+
+        macro_check_cols = [
+            "mkt_return_1d", "mkt_log_return", "mkt_mom_5", "mkt_vol_20",
+            "vix_level", "vix_return_1d", "irx_level", "tnx_level"
+        ]
+        present_macro_check_cols = [c for c in macro_check_cols if c in feats.columns]
+        if present_macro_check_cols:
+            non_null_counts = feats[present_macro_check_cols].notna().sum().to_dict()
+            print(f"[INFO] {sym}: macro non-null counts = {non_null_counts}")
 
         if feats.empty:
             print(f"[WARN] {sym}: empty after core-only dropna, skipping")

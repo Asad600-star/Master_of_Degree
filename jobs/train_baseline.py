@@ -467,6 +467,20 @@ def run_infer(engine) -> None:
         raise RuntimeError("Inference produced no rows. Check data / symbols.")
 
     out_df = pd.DataFrame(rows).sort_values(["symbol"]).reset_index(drop=True)
+
+    if only_symbol and PRED_OUT.exists():
+        try:
+            prev = pd.read_csv(PRED_OUT)
+            if not prev.empty and "symbol" in prev.columns:
+                prev = prev[prev["symbol"].astype(str).str.upper() != only_symbol.upper()]
+                out_df = (
+                    pd.concat([prev, out_df], ignore_index=True)
+                    .sort_values(["symbol"])
+                    .reset_index(drop=True)
+                )
+        except Exception:
+            pass
+
     out_df.to_csv(PRED_OUT, index=False)
     print("\n[INFER] Latest predictions:")
     print(out_df.to_string(index=False))
