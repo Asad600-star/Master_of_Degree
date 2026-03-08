@@ -1,0 +1,9 @@
+task,horizon_days,symbol,model,metric_name,metric_value,selection_note,saved_at_utc
+direction,5,AAPL,LOGREG,auc_mean,0.545130739390367,max auc_mean on walk-forward test,2026-03-08T11:48:52.090493+00:00
+direction,5,TSLA,LOGREG,auc_mean,0.5791223029814152,max auc_mean on walk-forward test,2026-03-08T11:48:52.090493+00:00
+direction,5,^GSPC,HYBRID_SOFTVOTE,auc_mean,0.5582987394828917,max auc_mean on walk-forward test,2026-03-08T11:48:52.090493+00:00
+direction,5,^IXIC,HYBRID_SOFTVOTE,auc_mean,0.5685697113940963,max auc_mean on walk-forward test,2026-03-08T11:48:52.090493+00:00
+volatility,5,AAPL,EXTRATREES,rmse_mean,0.007670916004726847,min rmse_mean on walk-forward test,2026-03-08T11:53:36.005966+00:00
+volatility,5,TSLA,EXTRATREES,rmse_mean,0.015490202766215145,min rmse_mean on walk-forward test,2026-03-08T11:53:36.005966+00:00
+volatility,5,^GSPC,EXTRATREES,rmse_mean,0.003947990864861691,min rmse_mean on walk-forward test,2026-03-08T11:53:36.005966+00:00
+volatility,5,^IXIC,EXTRATREES,rmse_mean,0.005061302704213168,min rmse_mean on walk-forward test,2026-03-08T11:53:36.005966+00:00

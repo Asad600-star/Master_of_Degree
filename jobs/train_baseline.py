@@ -12,6 +12,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from sklearn.linear_model import Ridge, ElasticNet, LogisticRegression
+from sklearn.isotonic import IsotonicRegression
 from sklearn.ensemble import (
     HistGradientBoostingRegressor,
     HistGradientBoostingClassifier,
@@ -145,6 +146,63 @@ def safe_auc(y_true: np.ndarray, y_prob: np.ndarray) -> float:
     if len(np.unique(y_true)) < 2:
         return float("nan")
     return float(roc_auc_score(y_true, y_prob))
+
+def get_classifier_prob(model, X: np.ndarray) -> np.ndarray:
+    """Return positive-class probabilities for any supported classifier."""
+    if hasattr(model, "predict_proba"):
+        p = model.predict_proba(X)[:, 1]
+    else:
+        s = model.decision_function(X)
+        p = 1.0 / (1.0 + np.exp(-s))
+    return np.asarray(p, dtype=float)
+
+def fit_prob_calibrator(y_true: np.ndarray, y_prob: np.ndarray, method: str = "isotonic"):
+    """Fit probability calibrator on validation probabilities.
+
+    method='isotonic' is preferred for flexible monotone calibration.
+    Falls back to logistic calibration when isotonic is not feasible.
+    Returns a tuple: (kind, fitted_object) or None.
+    """
+    y_true = np.asarray(y_true)
+    y_prob = np.asarray(y_prob, dtype=float)
+    mask = np.isfinite(y_true) & np.isfinite(y_prob)
+    y_true = y_true[mask]
+    y_prob = np.clip(y_prob[mask], 1e-6, 1.0 - 1e-6)
+
+    if len(y_true) < 30 or len(np.unique(y_true)) < 2:
+        return None
+
+    if method == "isotonic":
+        try:
+            iso = IsotonicRegression(out_of_bounds="clip")
+            iso.fit(y_prob, y_true)
+            return ("isotonic", iso)
+        except Exception:
+            pass
+
+    x = np.log(y_prob / (1.0 - y_prob)).reshape(-1, 1)
+    lr = LogisticRegression(max_iter=2000, random_state=RANDOM_STATE)
+    lr.fit(x, y_true)
+    return ("logistic", lr)
+
+def apply_prob_calibrator(calibrator, y_prob: np.ndarray) -> np.ndarray:
+    """Apply fitted calibrator to probabilities."""
+    y_prob = np.asarray(y_prob, dtype=float)
+    y_prob = np.clip(y_prob, 1e-6, 1.0 - 1e-6)
+
+    if calibrator is None:
+        return y_prob
+
+    kind, obj = calibrator
+    if kind == "isotonic":
+        out = obj.predict(y_prob)
+    elif kind == "logistic":
+        x = np.log(y_prob / (1.0 - y_prob)).reshape(-1, 1)
+        out = obj.predict_proba(x)[:, 1]
+    else:
+        out = y_prob
+
+    return np.clip(np.asarray(out, dtype=float), 1e-6, 1.0 - 1e-6)
 
 
 def _ema(s: pd.Series, span: int) -> pd.Series:
@@ -290,11 +348,22 @@ def _read_csv_safe(p: Path) -> pd.DataFrame:
         return pd.DataFrame()
     return pd.DataFrame()
 
+def _read_registry_safe(horizon_days: int) -> pd.DataFrame:
+    p = METRICS_DIR / f"model_registry_k{horizon_days}.csv"
+    try:
+        if p.exists():
+            return pd.read_csv(p)
+    except Exception:
+        return pd.DataFrame()
+    return pd.DataFrame()
+
 
 def select_best_models(horizon_days: int) -> dict:
-    """Select best non-baseline models per symbol for direction and volatility.
+    """Select best models per symbol for direction and volatility.
 
-    Falls back to LOGREG for direction and EXTRATREES for volatility if metrics are missing.
+    Priority:
+      1. model_registry_k{horizon}.csv if it exists and is valid
+      2. fallback to metrics_walk_direction/volatility files
 
     Returns:
       {
@@ -302,13 +371,35 @@ def select_best_models(horizon_days: int) -> dict:
         "volatility": {symbol: model_name, ...},
       }
     """
+    out = {"direction": {}, "volatility": {}}
+
+    # --- 1) Prefer persisted registry if present ---
+    reg = _read_registry_safe(horizon_days)
+    if not reg.empty and {"task", "symbol", "model"}.issubset(reg.columns):
+        reg = reg.copy()
+        if "horizon_days" in reg.columns:
+            reg = reg[reg["horizon_days"].astype(int) == int(horizon_days)]
+
+        for task_name in ("direction", "volatility"):
+            part = reg[reg["task"].astype(str) == task_name].copy()
+            if not part.empty:
+                # keep latest row per symbol if duplicates exist
+                if "saved_at_utc" in part.columns:
+                    part = part.sort_values(["symbol", "saved_at_utc"])
+                part = part.groupby("symbol", as_index=False).tail(1)
+                out[task_name] = dict(
+                    zip(part["symbol"].astype(str), part["model"].astype(str))
+                )
+
+        if out["direction"] or out["volatility"]:
+            return out
+
+    # --- 2) Fallback to metrics files ---
     d_path = METRICS_DIR / f"metrics_walk_direction_k{horizon_days}.csv"
     v_path = METRICS_DIR / f"metrics_walk_volatility_k{horizon_days}.csv"
 
     d = _read_csv_safe(d_path)
     v = _read_csv_safe(v_path)
-
-    out = {"direction": {}, "volatility": {}}
 
     # Direction: maximize AUC on test splits
     if not d.empty and {"symbol", "model", "split", "auc"}.issubset(d.columns):
@@ -337,6 +428,56 @@ def select_best_models(horizon_days: int) -> dict:
             out["volatility"] = dict(zip(best["symbol"].astype(str), best["model"].astype(str)))
 
     return out
+
+def save_model_registry(task: str, horizon_days: int, best_df: pd.DataFrame) -> Path:
+    """Persist best-per-symbol model selection for production use."""
+    registry_path = METRICS_DIR / f"model_registry_k{horizon_days}.csv"
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if best_df is None or best_df.empty:
+        return registry_path
+
+    reg = best_df.copy()
+    reg.insert(0, "task", task)
+    reg["horizon_days"] = int(horizon_days)
+    reg["saved_at_utc"] = pd.Timestamp.utcnow().isoformat()
+
+    if task == "direction":
+        metric_name = "auc_mean"
+        reg["metric_name"] = metric_name
+        reg["metric_value"] = reg[metric_name]
+        reg["selection_note"] = "max auc_mean on walk-forward test"
+    else:
+        metric_name = "rmse_mean"
+        reg["metric_name"] = metric_name
+        reg["metric_value"] = reg[metric_name]
+        reg["selection_note"] = "min rmse_mean on walk-forward test"
+
+    keep_cols = [
+        "task",
+        "horizon_days",
+        "symbol",
+        "model",
+        "metric_name",
+        "metric_value",
+        "selection_note",
+        "saved_at_utc",
+    ]
+    reg = reg[keep_cols]
+
+    if registry_path.exists():
+        try:
+            prev = pd.read_csv(registry_path)
+        except Exception:
+            prev = pd.DataFrame(columns=keep_cols)
+        if not prev.empty:
+            prev = prev[prev["task"].astype(str) != str(task)]
+            reg = pd.concat([prev, reg], ignore_index=True)
+
+    reg = reg.sort_values(["task", "symbol"]).reset_index(drop=True)
+    reg.to_csv(registry_path, index=False)
+    print(f"[ARTIFACT] Saved model registry to: {registry_path}")
+    return registry_path
 
 
 def get_model_by_name(task: str, name: str):
@@ -399,9 +540,12 @@ def run_infer(engine) -> None:
     print(f"[INFO] ACTION=infer HORIZON_DAYS={HORIZON_DAYS}")
     selected = select_best_models(HORIZON_DAYS)
 
-    # Defaults if metrics not found for a symbol
+    # Defaults if registry/metrics not found for a symbol
     default_dir = os.environ.get("DEFAULT_DIR_MODEL", "LOGREG")
     default_vol = os.environ.get("DEFAULT_VOL_MODEL", "EXTRATREES")
+
+    print(f"[INFO] Selected direction models: {selected.get('direction', {})}")
+    print(f"[INFO] Selected volatility models: {selected.get('volatility', {})}")
 
     only_symbol = os.environ.get("ONLY_SYMBOL")
     only_symbol = only_symbol.strip() if only_symbol else None
@@ -467,6 +611,7 @@ def run_infer(engine) -> None:
         raise RuntimeError("Inference produced no rows. Check data / symbols.")
 
     out_df = pd.DataFrame(rows).sort_values(["symbol"]).reset_index(drop=True)
+    out_df["generated_at_utc"] = pd.Timestamp.utcnow().isoformat()
 
     if only_symbol and PRED_OUT.exists():
         try:
@@ -505,6 +650,8 @@ def run_backtest(engine) -> None:
 
     selected = select_best_models(HORIZON_DAYS)
     default_dir = os.environ.get("DEFAULT_DIR_MODEL", "LOGREG")
+
+    print(f"[INFO] Backtest selected direction models: {selected.get('direction', {})}")
 
     only_symbol = os.environ.get("ONLY_SYMBOL")
     only_symbol = only_symbol.strip() if only_symbol else None
@@ -1581,6 +1728,8 @@ def main() -> None:
                 best = non_base.sort_values(["symbol", "rmse_mean"]).groupby("symbol", as_index=False).head(1)
                 print("\n[BEST] Per symbol (excluding baselines):")
                 print(best[["symbol", "model", "rmse_mean", "rmse_impr_pct_vs_base", "r2_mean"]].to_string(index=False))
+                best_df = best.reset_index(drop=True).copy()
+                save_model_registry(TASK, HORIZON_DAYS, best_df)
 
     else:
         if not all_clf:
@@ -1620,6 +1769,8 @@ def main() -> None:
                 best = non_base.sort_values(["symbol", "auc_mean"], ascending=[True, False]).groupby("symbol", as_index=False).head(1)
                 print("\n[BEST] Per symbol (excluding baselines):")
                 print(best[["symbol", "model", "auc_mean", "auc_delta_vs_base", "balacc_mean"]].to_string(index=False))
+                best_df = best.reset_index(drop=True).copy()
+                save_model_registry("direction", HORIZON_DAYS, best_df)
 
     print("\n[DONE] Finished.")
     print(f"[ARTIFACT] Saved metrics to: {OUT_PATH}")

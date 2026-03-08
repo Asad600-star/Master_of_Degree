@@ -51,8 +51,7 @@ def load_macro_frame(engine) -> pd.DataFrame:
         .ffill()
     )
 
-    out = pd.DataFrame(index=piv.index.copy())
-    out["date"] = pd.to_datetime(out.index).normalize()
+    out = pd.DataFrame({"date": pd.to_datetime(piv.index).normalize()})
 
     # Market (^GSPC)
     if "^GSPC" in piv.columns:
@@ -320,35 +319,28 @@ def main() -> None:
         # join macro context by date (left join keeps asset dates)
         feats = feats.merge(macro, on="date", how="left")
 
-        # --- FIX: ensure macro features are not all-NaN ---
-        macro_cols = [
-            'mkt_return_1d','mkt_log_return','mkt_mom_5','mkt_mom_10','mkt_mom_20','mkt_vol_20',
-            'vix_level','vix_return_1d','vix_change_1d','vix_log','vix_z_60','vix_x_mktret',
-            'irx_level','irx_change_1d',
-            'tnx_level','tnx_change_1d',
-            'corr_mkt_60','beta_mkt_60',
-            'mkt_trend_20','mkt_risk_20',
-            'yc_slope'
+        # Fill only the macro columns that are actually stored in features_daily.
+        macro_fill_cols = [
+            "mkt_close", "mkt_return_1d", "mkt_log_return", "mkt_mom_5", "mkt_mom_10", "mkt_mom_20", "mkt_vol_20",
+            "vix_level", "vix_return_1d", "vix_change_1d",
+            "irx_level", "irx_change_1d",
+            "tnx_level", "tnx_change_1d",
         ]
-        present_macro_cols = [c for c in macro_cols if c in feats.columns]
-        if present_macro_cols:
-            feats = feats.sort_values('date')
-            feats[present_macro_cols] = (
-                feats[present_macro_cols]
+        present_macro_fill_cols = [c for c in macro_fill_cols if c in feats.columns]
+        if present_macro_fill_cols:
+            feats = feats.sort_values("date")
+            feats[present_macro_fill_cols] = (
+                feats[present_macro_fill_cols]
                 .replace([np.inf, -np.inf], np.nan)
                 .ffill()
                 .bfill()
             )
-        # -------------------------------------------------
 
         if feats.empty:
             print(f"[WARN] Features empty after base feature engineering for symbol={sym}, skipping")
             continue
 
-        # IMPORTANT:
-        # Do NOT dropna() after merging macro. Macro columns can legitimately have NaNs
-        # (different start dates, rolling windows). We'll keep them in DB and let
-        # the training script decide which rows are usable (it already dropna() on feature_cols).
+        # Keep macro columns in DB even if some rows still contain NaN.
         feats = feats.replace([np.inf, -np.inf], np.nan).reset_index(drop=True)
 
         # Keep required base columns; macro columns may remain NaN
@@ -359,9 +351,7 @@ def main() -> None:
             print(f"[WARN] {sym}: produced NULLs in symbol/date, skipping")
             continue
 
-        # --- FINAL FIX ---
-        # Drop rows ONLY if causal core is broken.
-        # Rolling / lag / macro features are allowed to be NaN at this stage.
+        # Drop rows only if required causal core columns are broken.
         core_cols = [
             "symbol",
             "date",
@@ -373,12 +363,11 @@ def main() -> None:
             "return_1d",
             "log_return",
         ]
-
         feats = feats.dropna(subset=core_cols).reset_index(drop=True)
 
         macro_check_cols = [
             "mkt_return_1d", "mkt_log_return", "mkt_mom_5", "mkt_vol_20",
-            "vix_level", "vix_return_1d", "irx_level", "tnx_level"
+            "vix_level", "vix_return_1d", "irx_level", "tnx_level",
         ]
         present_macro_check_cols = [c for c in macro_check_cols if c in feats.columns]
         if present_macro_check_cols:
@@ -388,7 +377,6 @@ def main() -> None:
         if feats.empty:
             print(f"[WARN] {sym}: empty after core-only dropna, skipping")
             continue
-        # -----------------
 
 
 
@@ -403,6 +391,8 @@ def main() -> None:
 
         total_rows += len(feats)
         print(f"[OK] {sym}: features rows={len(feats)}")
+
+    print(f"[DONE] features_daily built. total_rows={total_rows}")
 
 
 if __name__ == "__main__":
