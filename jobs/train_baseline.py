@@ -39,6 +39,15 @@ from core.explain.shap_explainer import compute_and_save_shap
 
 load_dotenv()
 
+import sys
+from pathlib import Path
+
+# === ИСПРАВЛЕНИЕ ПУТЕЙ ===
+# Делаем так, чтобы train_baseline.py всегда видел папку core/
+project_root = str(Path(__file__).resolve().parents[1])
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 # ==========================================================
 # Baselines for financial time series (no leakage)
 # Supports tasks via env:
