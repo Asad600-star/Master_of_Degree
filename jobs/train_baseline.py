@@ -33,6 +33,8 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 
+from core.explain.shap_explainer import compute_and_save_shap
+
 load_dotenv()
 
 # ==========================================================
@@ -489,40 +491,43 @@ def get_model_by_name(task: str, name: str):
 
 
 def infer_latest_for_symbol(df: pd.DataFrame, sym: str, best_dir: str, best_vol: str) -> dict | None:
-    """Train on all available history (excluding last horizon rows for labels) and predict latest row."""
     df2, feature_cols = build_feature_matrix(df)
     if df2.empty or not feature_cols:
         print(f"[WARN] {sym}: cannot infer (no usable features)")
         return None
 
-    # We need targets for training labels, but prediction is for the last available feature row.
-    # Create targets on a copy; last HORIZON_DAYS rows will be dropped from the labeled set.
     labeled = compute_targets(df2.copy(), HORIZON_DAYS)
     if labeled.empty:
-        print(f"[WARN] {sym}: cannot infer (no labeled rows after target build)")
+        print(f"[WARN] {sym}: cannot infer (no labeled rows)")
         return None
 
-    # Latest feature row (may not have a target)
     latest = df2.iloc[[-1]].copy()
-
     X_train = labeled[feature_cols].values
     X_latest = latest[feature_cols].values
+    feature_names = feature_cols
 
-    # ---- Direction ----
+    # ---- Direction (классификатор) ----
     dir_model, _ = get_model_by_name("direction", best_dir)
     y_dir = labeled["target_direction"].values
     dir_model.fit(X_train, y_dir)
+
     if hasattr(dir_model, "predict_proba"):
         p_up = float(dir_model.predict_proba(X_latest)[:, 1][0])
     else:
         s = float(dir_model.decision_function(X_latest)[0])
         p_up = float(1.0 / (1.0 + np.exp(-s)))
 
-    # ---- Volatility ----
+    # Сохраняем SHAP для direction
+    compute_and_save_shap(dir_model, X_latest, feature_names, f"{sym}_direction")
+
+    # ---- Volatility (регрессор) ----
     vol_model, _ = get_model_by_name("volatility", best_vol)
     y_vol = labeled["target_vol_kd"].values
     vol_model.fit(X_train, y_vol)
     vol_pred = float(vol_model.predict(X_latest)[0])
+
+    # Сохраняем SHAP для volatility
+    compute_and_save_shap(vol_model, X_latest, feature_names, f"{sym}_volatility")
 
     out = {
         "symbol": sym,
