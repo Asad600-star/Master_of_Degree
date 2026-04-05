@@ -22,8 +22,13 @@ from sklearn.ensemble import (
     ExtraTreesRegressor,
     RandomForestClassifier,
     ExtraTreesClassifier,
+    VotingClassifier,
 )
 from sklearn.base import BaseEstimator, RegressorMixin, ClassifierMixin
+
+# === НОВЫЕ СИЛЬНЫЕ МОДЕЛИ ===
+from xgboost import XGBClassifier, XGBRegressor
+from lightgbm import LGBMClassifier, LGBMRegressor
 
 from sklearn.metrics import (
     mean_absolute_error,
@@ -43,7 +48,6 @@ import sys
 from pathlib import Path
 
 # === ИСПРАВЛЕНИЕ ПУТЕЙ ===
-# Делаем так, чтобы train_baseline.py всегда видел папку core/
 project_root = str(Path(__file__).resolve().parents[1])
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
@@ -1065,100 +1069,75 @@ class SoftVoteLogregHGBClassifier(BaseEstimator, ClassifierMixin):
 
 
 def make_models(task: str):
+    
+    """УЛУЧШЕННЫЙ НАБОР МОДЕЛЕЙ — полностью совместим со старым registry"""
+    if task == "direction":
+        logreg = Pipeline([
+            ("scaler", StandardScaler()),
+            ("model", LogisticRegression(max_iter=2000, class_weight="balanced", random_state=RANDOM_STATE))
+        ])
+
+        hgb = HistGradientBoostingClassifier(
+            max_iter=400, learning_rate=0.05, max_depth=6,
+            l2_regularization=1.0, random_state=RANDOM_STATE
+        )
+
+        xgb = XGBClassifier(
+            n_estimators=400, max_depth=6, learning_rate=0.05,
+            subsample=0.8, colsample_bytree=0.8, eval_metric="auc",
+            random_state=RANDOM_STATE, use_label_encoder=False
+        )
+
+        lgbm = LGBMClassifier(
+            n_estimators=400, max_depth=6, learning_rate=0.05,
+            num_leaves=31, random_state=RANDOM_STATE
+        )
+
+        hybrid_voting = VotingClassifier([
+            ('logreg', logreg),
+            ('hgb', hgb),
+            ('xgb', xgb),
+            ('lgbm', lgbm)
+        ], voting='soft')
+
+        return [
+            ("LOGREG", logreg, "Logistic Regression balanced"),
+            ("HGB", hgb, "HistGradientBoosting"),
+            ("XGB", xgb, "XGBoost"),
+            ("LGBM", lgbm, "LightGBM"),
+            ("HYBRID_SOFTVOTE", hybrid_voting, "ГИБРИД (старое название)"),
+            ("HYBRID_VOTING", hybrid_voting, "ГИБРИД: Soft Voting (LogReg + HGB + XGB + LGBM)"),
+        ]
+
+    # Для volatility — добавляем все старые + новые модели
     if task in ("return", "volatility"):
-        ridge = Pipeline(
-            [("scaler", StandardScaler()), ("model", Ridge(alpha=5.0))]
-        )
-        # Safer ridge baseline: higher regularization
-        ridge_safe = Pipeline(
-            [("scaler", StandardScaler()), ("model", Ridge(alpha=20.0))]
-        )
-        enet = Pipeline(
-            [
-                ("scaler", StandardScaler()),
-                (
-                    "model",
-                    ElasticNet(alpha=1e-3, l1_ratio=0.2, random_state=RANDOM_STATE, max_iter=20000),
-                ),
-            ]
-        )
+        ridge = Pipeline([("scaler", StandardScaler()), ("model", Ridge(alpha=5.0))])
         hgb = HistGradientBoostingRegressor(
-            max_depth=3,
-            learning_rate=0.03,
-            max_iter=2000,
-            l2_regularization=1.0,
-            min_samples_leaf=30,
-            random_state=RANDOM_STATE,
+            max_iter=400, learning_rate=0.05, max_depth=6,
+            l2_regularization=1.0, random_state=RANDOM_STATE
         )
-        rf = RandomForestRegressor(
-            n_estimators=800,
-            min_samples_leaf=10,
-            max_features="sqrt",
-            random_state=RANDOM_STATE,
-            n_jobs=-1,
+        xgb = XGBRegressor(
+            n_estimators=400, max_depth=6, learning_rate=0.05,
+            subsample=0.8, colsample_bytree=0.8, random_state=RANDOM_STATE
+        )
+        lgbm = LGBMRegressor(
+            n_estimators=400, max_depth=6, learning_rate=0.05,
+            num_leaves=31, random_state=RANDOM_STATE
         )
         et = ExtraTreesRegressor(
-            n_estimators=1200,
-            min_samples_leaf=10,
-            max_features="sqrt",
-            random_state=RANDOM_STATE,
-            n_jobs=-1,
+            n_estimators=1200, min_samples_leaf=10, max_features="sqrt",
+            random_state=RANDOM_STATE, n_jobs=-1
         )
+
         return [
-            ("RIDGE", ridge, "alpha=5.0"),
-            ("RIDGE_SAFE", ridge_safe, "alpha=20.0"),
-            ("ELASTICNET", enet, "alpha=1e-3 l1=0.2"),
-            ("HGB", hgb, "lr=0.03 depth=3 l2=1.0 leaf=30"),
-            ("RANDOMFOREST", rf, "n=800 leaf=10"),
-            ("EXTRATREES", et, "n=1200 leaf=10"),
-            ("HYBRID_RIDGE_HGB", HybridRidgeHGBRegressor(ridge_alpha=5.0), "ridge+HGB(residuals)"),
+            ("HGB", hgb, "HistGradientBoosting"),
+            ("XGB", xgb, "XGBoost"),
+            ("LGBM", lgbm, "LightGBM"),
+            ("EXTRATREES", et, "ExtraTrees"),
+            ("RIDGE", ridge, "Ridge"),
         ]
 
-    if task == "direction":
-        logreg = Pipeline(
-            [
-                ("scaler", StandardScaler()),
-                (
-                    "model",
-                    LogisticRegression(max_iter=5000, C=0.5, class_weight="balanced", random_state=RANDOM_STATE),
-                ),
-            ]
-        )
-        hgb = HistGradientBoostingClassifier(
-            max_depth=3,
-            learning_rate=0.03,
-            max_iter=2000,
-            l2_regularization=1.0,
-            min_samples_leaf=30,
-            random_state=RANDOM_STATE,
-        )
-        rf = RandomForestClassifier(
-            n_estimators=800,
-            min_samples_leaf=10,
-            max_features="sqrt",
-            class_weight="balanced_subsample",
-            random_state=RANDOM_STATE,
-            n_jobs=-1,
-        )
-        et = ExtraTreesClassifier(
-            n_estimators=1200,
-            min_samples_leaf=10,
-            max_features="sqrt",
-            class_weight="balanced",
-            random_state=RANDOM_STATE,
-            n_jobs=-1,
-        )
-        return [
-            ("LOGREG", logreg, "C=0.5 balanced"),
-            ("HGB", hgb, "lr=0.03 depth=3 l2=1.0 leaf=30"),
-            ("RANDOMFOREST", rf, "n=800 leaf=10 balanced"),
-            ("EXTRATREES", et, "n=1200 leaf=10 balanced"),
-            ("HYBRID_SOFTVOTE", SoftVoteLogregHGBClassifier(logreg_C=0.5), "avg(LogReg,HGB)"),
-        ]
-
-    raise ValueError(f"Unknown task={task}")
-
-
+    raise ValueError(f"Unknown task: {task}")
 def eval_one_split_reg(sym: str, fold: int, split_name: str, task: str, y_true, y_pred, n_rows: int, model_name: str, extra: str, out: list[RowReg]):
     m = print_reg(f"{model_name}({split_name})", y_true, y_pred)
     out.append(RowReg(sym, MODE, fold, split_name, task, HORIZON_DAYS, model_name, n_rows, **m, extra=extra))

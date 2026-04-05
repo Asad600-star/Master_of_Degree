@@ -3,27 +3,21 @@ import pandas as pd
 import json
 from pathlib import Path
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import sys
 from datetime import datetime
 
-# === ВАЖНЫЕ ИМПОРТЫ ===
-from sqlalchemy import create_engine, text
-
-# Подключаем корень проекта
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from services.predict import get_prediction
+from sqlalchemy import create_engine, text
 
 st.set_page_config(page_title="Stock Forecast", page_icon="📈", layout="wide")
 
 st.title("📈 Прогноз направления и волатильности акций")
 st.markdown("**Гибридная ML-модель** • 5-дневный горизонт • Реальное время")
 
-# Язык
 lang = st.sidebar.radio("Язык / Language", ["🇷🇺 Русский", "🇬🇧 English"], horizontal=True)
 is_ru = lang.startswith("🇷🇺")
 
-# Выбор символа
 symbols = {
     "AAPL": "Apple Inc. (AAPL)",
     "TSLA": "Tesla Inc. (TSLA)",
@@ -38,13 +32,12 @@ symbol = st.sidebar.selectbox(
 )
 
 if st.sidebar.button("🔄 Обновить данные и прогноз" if is_ru else "🔄 Refresh", use_container_width=True):
-    with st.spinner("Обновление данных..."):
+    with st.spinner("Обновление..."):
         result = get_prediction(symbol, refresh=True)
-    st.success("✅ Обновлено!" if is_ru else "✅ Updated!")
+    st.success("✅ Обновлено!")
 else:
     result = get_prediction(symbol, refresh=False)
 
-# ==================== ДАШБОРД ====================
 st.subheader(f"{symbols[symbol]} • {result['asof_date']}")
 
 c1, c2, c3 = st.columns(3)
@@ -60,8 +53,8 @@ st.info(f"**Вероятность роста:** {result['p_up']:.1%} | **О
 st.subheader("🛡️ Risk Management")
 st.success(result["risk_summary_ru"] if is_ru else result["risk_summary_ru"])
 
-# ==================== ГРАФИК ====================
-st.subheader("📈 График цены + прогнозный коридор на 5 дней")
+# ==================== ГРАФИК ЦЕНЫ ====================
+st.subheader("📈 График цены + прогнозный коридор")
 
 engine = create_engine("postgresql+psycopg://stock:stockpass@localhost:5432/stockdb")
 df_price = pd.read_sql_query(
@@ -71,47 +64,60 @@ df_price = pd.read_sql_query(
 df_price = df_price.sort_values("date")
 
 fig = go.Figure()
-fig.add_trace(go.Scatter(x=df_price["date"], y=df_price["close"], 
-                         name="Историческая цена", line=dict(color="#22c55e", width=2)))
+fig.add_trace(go.Scatter(x=df_price["date"], y=df_price["close"], name="Историческая цена", line=dict(color="#22c55e")))
 
 last_close = df_price["close"].iloc[-1]
 dates_future = pd.date_range(start=df_price["date"].iloc[-1], periods=6, freq="B")[1:]
-upper = [last_close * (1 + result["vol_pred"] * (i/2)) for i in range(1, 6)]
-lower = [last_close * (1 - result["vol_pred"] * (i/2)) for i in range(1, 6)]
+upper = [last_close * (1 + result["vol_pred"] * (i/2)) for i in range(1,6)]
+lower = [last_close * (1 - result["vol_pred"] * (i/2)) for i in range(1,6)]
 
-fig.add_trace(go.Scatter(x=dates_future, y=upper, mode="lines", 
-                         line=dict(color="rgba(34,197,94,0.4)"), name="Верхний коридор"))
-fig.add_trace(go.Scatter(x=dates_future, y=lower, mode="lines", 
-                         line=dict(color="rgba(234,179,8,0.4)"), name="Нижний коридор", fill="tonexty"))
+fig.add_trace(go.Scatter(x=dates_future, y=upper, mode="lines", line=dict(color="rgba(34,197,94,0.4)"), name="Верхний коридор"))
+fig.add_trace(go.Scatter(x=dates_future, y=lower, mode="lines", line=dict(color="rgba(234,179,8,0.4)"), name="Нижний коридор", fill="tonexty"))
 
-fig.update_layout(height=550, template="plotly_dark", 
-                  title=f"{symbol} — Последние 60 дней + прогноз на 5 дней")
+fig.update_layout(height=500, template="plotly_dark", title=f"{symbol} — Последние 60 дней + прогноз")
 st.plotly_chart(fig, use_container_width=True)
 
-# ==================== SHAP ====================
+# ==================== КРАСИВЫЙ SHAP ====================
 st.subheader("🔍 Почему модель решила именно так? (SHAP)")
 
 shap_file = Path("artifacts") / f"shap_{symbol}_direction.json"
 if shap_file.exists():
     with open(shap_file, encoding="utf-8") as f:
-        shap_data = json.load(f)
-    feature_names = shap_data["feature_names"]
-    shap_values = shap_data["shap_values"][0] if isinstance(shap_data["shap_values"][0], list) else shap_data["shap_values"]
-    base_value = shap_data["base_value"]
+        data = json.load(f)
+    
+    shap_values = data["shap_values"]
+    if isinstance(shap_values[0], list):
+        shap_values = shap_values[0]
+    
+    # Берём только топ-12 самых важных факторов
+    top = sorted(zip(data["feature_names"], shap_values), key=lambda x: abs(x[1]), reverse=True)[:12]
+    names = [name for name, _ in top]
+    values = [val for _, val in top]
 
-    fig_shap = go.Figure(go.Waterfall(
-        name="SHAP contribution",
-        orientation="v",
-        measure=["relative"] * len(feature_names) + ["total"],
-        x=feature_names + ["Итоговый прогноз"],
-        y=shap_values + [base_value],
-        text=[f"{v:+.4f}" for v in shap_values] + [f"{base_value + sum(shap_values):+.4f}"],
-        textposition="outside",
-        connector=dict(line=dict(color="rgba(63, 63, 63, 0.5)"))
+    # Горизонтальный барчарт (гораздо читаемее)
+    colors = ["#22c55e" if v > 0 else "#ef4444" for v in values]
+    fig_shap = go.Figure(go.Bar(
+        y=names[::-1],
+        x=values[::-1],
+        orientation='h',
+        marker_color=colors[::-1],
+        text=[f"{v:+.4f}" for v in values[::-1]],
+        textposition="auto"
     ))
-    fig_shap.update_layout(height=600, template="plotly_dark",
-                           title="SHAP Waterfall — вклад факторов")
+    fig_shap.update_layout(
+        height=500,
+        template="plotly_dark",
+        title="Топ-12 факторов, которые повлияли на решение модели",
+        xaxis_title="Вклад в вероятность роста",
+        yaxis_title=""
+    )
     st.plotly_chart(fig_shap, use_container_width=True)
+
+    # Таблица для дополнительной ясности
+    st.write("**Топ факторов (по силе влияния):**")
+    table_data = {"Фактор": names, "Вклад": [f"{v:+.4f}" for v in values]}
+    st.dataframe(pd.DataFrame(table_data), use_container_width=True)
+
 else:
     st.info("SHAP-график будет доступен после следующего полного обновления модели.")
 
