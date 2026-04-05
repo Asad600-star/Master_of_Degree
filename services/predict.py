@@ -18,9 +18,18 @@ def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 def _run(cmd: list[str], extra_env: dict | None = None):
+    """Запускает скрипт с правильным PYTHONPATH, чтобы core был виден"""
     env = os.environ.copy()
+    
+    # === КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ ===
+    project_root = str(ROOT)                    # ROOT уже определён в начале файла
+    env["PYTHONPATH"] = project_root + os.pathsep + env.get("PYTHONPATH", "")
+
     if extra_env:
         env.update({k: str(v) for k, v in extra_env.items()})
+
+    print(f"[RUN] Executing: {' '.join(cmd)} | PYTHONPATH={project_root}")
+    
     subprocess.run(cmd, cwd=ROOT, env=env, check=True)
 
 def _normalize_symbol(symbol: str) -> str:
