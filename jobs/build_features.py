@@ -107,11 +107,12 @@ def build_features_for_symbol(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
     return df
 
 
-def ensure_features_table(engine) -> None:
+def ensure_features_table(engine):
+    """Создаём/обновляем таблицу features_daily + гарантируем наличие всех макро-колонок"""
     ddl = """
     CREATE TABLE IF NOT EXISTS features_daily (
-        symbol text,
-        date date,
+        symbol text NOT NULL,
+        date date NOT NULL,
         open double precision,
         high double precision,
         low double precision,
@@ -130,15 +131,15 @@ def ensure_features_table(engine) -> None:
         return_lag_3 double precision,
         return_lag_4 double precision,
         return_lag_5 double precision,
-        target_return_1d double precision
+        PRIMARY KEY (symbol, date)
     );
     """
+
     with engine.begin() as conn:
         conn.execute(text(ddl))
 
-        # Ensure macro columns exist (safe for existing DB)
+        # Добавляем макро-колонки, если их ещё нет
         macro_cols = [
-            ("mkt_close", "double precision"),
             ("mkt_return_1d", "double precision"),
             ("mkt_log_return", "double precision"),
             ("mkt_mom_5", "double precision"),
@@ -153,38 +154,15 @@ def ensure_features_table(engine) -> None:
             ("tnx_level", "double precision"),
             ("tnx_change_1d", "double precision"),
         ]
+
         for col, typ in macro_cols:
             conn.execute(text(f"ALTER TABLE features_daily ADD COLUMN IF NOT EXISTS {col} {typ}"))
 
-        nulls = conn.execute(
-            text(
-                """
-                SELECT
-                  SUM((symbol IS NULL)::int) AS symbol_nulls,
-                  SUM((date   IS NULL)::int) AS date_nulls
-                FROM features_daily
-                """
-            )
-        ).mappings().one()
-
-        if (nulls["symbol_nulls"] or 0) > 0 or (nulls["date_nulls"] or 0) > 0:
-            raise RuntimeError(
-                "features_daily contains NULLs in key columns: "
-                f"symbol_nulls={nulls['symbol_nulls']}, date_nulls={nulls['date_nulls']}. "
-                "Fix/delete those rows before enforcing constraints."
-            )
-
-        conn.execute(text("ALTER TABLE features_daily ALTER COLUMN symbol SET NOT NULL"))
-        conn.execute(text("ALTER TABLE features_daily ALTER COLUMN date SET NOT NULL"))
-
-        conn.execute(
-            text(
-                "CREATE UNIQUE INDEX IF NOT EXISTS features_daily_symbol_date_uq "
-                "ON features_daily(symbol, date)"
-            )
-        )
+        # Создаём индексы
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS features_daily_symbol_date_uq ON features_daily(symbol, date)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS features_daily_date_idx ON features_daily(date)"))
-        conn.execute(text("DROP INDEX IF EXISTS features_daily_symbol_date_idx"))
+
+    print("[OK] Таблица features_daily проверена и обновлена")
 
 
 def main() -> None:

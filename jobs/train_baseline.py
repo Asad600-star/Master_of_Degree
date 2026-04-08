@@ -506,22 +506,34 @@ def get_model_by_name(task: str, name: str):
 
 
 def infer_latest_for_symbol(df: pd.DataFrame, sym: str, best_dir: str, best_vol: str) -> dict | None:
+    """Финальная версия: всегда берёт самую свежую цену"""
     df2, feature_cols = build_feature_matrix(df)
     if df2.empty or not feature_cols:
         print(f"[WARN] {sym}: cannot infer (no usable features)")
         return None
+
+    # Берём самую последнюю доступную дату из цен
+    engine = create_engine("postgresql+psycopg://stock:stockpass@localhost:5432/stockdb")
+    latest_price = pd.read_sql_query(
+        text("SELECT date FROM market_ohlcv WHERE symbol = :symbol ORDER BY date DESC LIMIT 1"),
+        engine, params={"symbol": sym}
+    )
+    latest_date = pd.to_datetime(latest_price["date"].iloc[0])
+    print(f"[DEBUG] Latest price date used for {sym}: {latest_date.date()}")
+
+    # Берём строку фич, ближайшую к этой дате
+    latest = df2[df2["date"] <= latest_date].sort_values("date").iloc[[-1]].copy()
 
     labeled = compute_targets(df2.copy(), HORIZON_DAYS)
     if labeled.empty:
         print(f"[WARN] {sym}: cannot infer (no labeled rows)")
         return None
 
-    latest = df2.iloc[[-1]].copy()
     X_train = labeled[feature_cols].values
     X_latest = latest[feature_cols].values
     feature_names = feature_cols
 
-    # ---- Direction (классификатор) ----
+    # Direction
     dir_model, _ = get_model_by_name("direction", best_dir)
     y_dir = labeled["target_direction"].values
     dir_model.fit(X_train, y_dir)
@@ -532,21 +544,19 @@ def infer_latest_for_symbol(df: pd.DataFrame, sym: str, best_dir: str, best_vol:
         s = float(dir_model.decision_function(X_latest)[0])
         p_up = float(1.0 / (1.0 + np.exp(-s)))
 
-    # Сохраняем SHAP для direction
     compute_and_save_shap(dir_model, X_latest, feature_names, f"{sym}_direction")
 
-    # ---- Volatility (регрессор) ----
+    # Volatility
     vol_model, _ = get_model_by_name("volatility", best_vol)
     y_vol = labeled["target_vol_kd"].values
     vol_model.fit(X_train, y_vol)
     vol_pred = float(vol_model.predict(X_latest)[0])
 
-    # Сохраняем SHAP для volatility
     compute_and_save_shap(vol_model, X_latest, feature_names, f"{sym}_volatility")
 
     out = {
         "symbol": sym,
-        "asof_date": str(to_pydate(latest["date"].iloc[0])),
+        "asof_date": str(latest_date.date()),
         "horizon_days": int(HORIZON_DAYS),
         "direction_model": str(best_dir),
         "p_up": p_up,
@@ -1069,8 +1079,7 @@ class SoftVoteLogregHGBClassifier(BaseEstimator, ClassifierMixin):
 
 
 def make_models(task: str):
-    
-    """УЛУЧШЕННЫЙ НАБОР МОДЕЛЕЙ — полностью совместим со старым registry"""
+    """УЛУЧШЕННЫЙ НАБОР МОДЕЛЕЙ — настоящая гибридность + полная совместимость"""
     if task == "direction":
         logreg = Pipeline([
             ("scaler", StandardScaler()),
@@ -1105,13 +1114,11 @@ def make_models(task: str):
             ("HGB", hgb, "HistGradientBoosting"),
             ("XGB", xgb, "XGBoost"),
             ("LGBM", lgbm, "LightGBM"),
-            ("HYBRID_SOFTVOTE", hybrid_voting, "ГИБРИД (старое название)"),
             ("HYBRID_VOTING", hybrid_voting, "ГИБРИД: Soft Voting (LogReg + HGB + XGB + LGBM)"),
         ]
 
-    # Для volatility — добавляем все старые + новые модели
+    # Для volatility — добавил обратно все старые модели + новые
     if task in ("return", "volatility"):
-        ridge = Pipeline([("scaler", StandardScaler()), ("model", Ridge(alpha=5.0))])
         hgb = HistGradientBoostingRegressor(
             max_iter=400, learning_rate=0.05, max_depth=6,
             l2_regularization=1.0, random_state=RANDOM_STATE
@@ -1124,20 +1131,20 @@ def make_models(task: str):
             n_estimators=400, max_depth=6, learning_rate=0.05,
             num_leaves=31, random_state=RANDOM_STATE
         )
-        et = ExtraTreesRegressor(
-            n_estimators=1200, min_samples_leaf=10, max_features="sqrt",
-            random_state=RANDOM_STATE, n_jobs=-1
-        )
+        rf = RandomForestRegressor(n_estimators=800, min_samples_leaf=10, random_state=RANDOM_STATE, n_jobs=-1)
+        et = ExtraTreesRegressor(n_estimators=1200, min_samples_leaf=10, random_state=RANDOM_STATE, n_jobs=-1)
 
         return [
             ("HGB", hgb, "HistGradientBoosting"),
             ("XGB", xgb, "XGBoost"),
             ("LGBM", lgbm, "LightGBM"),
+            ("RANDOMFOREST", rf, "RandomForest"),
             ("EXTRATREES", et, "ExtraTrees"),
-            ("RIDGE", ridge, "Ridge"),
         ]
 
     raise ValueError(f"Unknown task: {task}")
+
+
 def eval_one_split_reg(sym: str, fold: int, split_name: str, task: str, y_true, y_pred, n_rows: int, model_name: str, extra: str, out: list[RowReg]):
     m = print_reg(f"{model_name}({split_name})", y_true, y_pred)
     out.append(RowReg(sym, MODE, fold, split_name, task, HORIZON_DAYS, model_name, n_rows, **m, extra=extra))

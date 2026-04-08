@@ -147,3 +147,23 @@ env ACTION=infer TASK=volatility python -m jobs.train_baseline
 
 # 4. Запуск сайта
 streamlit run apps/web/main.py
+
+# 1. Загружаем самые свежие цены (включая 3–7 апреля)
+python -m jobs.ingest_prices
+
+# 2. Пересчитываем все признаки
+python -m jobs.build_features
+
+# 3. Обновляем предсказания (direction)
+env ACTION=infer TASK=direction python -m jobs.train_baseline
+
+# 4. Обновляем предсказания (volatility)
+env ACTION=infer TASK=volatility python -m jobs.train_baseline
+
+Как использовать каждый день:
+python -m jobs.daily_update
+
+запуск телеграм бота:
+cd /Users/asadbekikromov/Documents/GitHub/Master_of_Degree
+source .venv/bin/activate
+python jobs/bot.py
