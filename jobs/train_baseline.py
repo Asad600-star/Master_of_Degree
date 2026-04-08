@@ -51,7 +51,9 @@ project_root = str(Path(__file__).resolve().parents[1])
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-TRAIN_START_DATE = "2022-01-01"
+# Читаем дату начала обучения из .env (можно легко менять)
+TRAIN_START_DATE = os.environ.get("TRAIN_START_DATE", "2022-01-01")
+print(f"[CONFIG] Обучаем модель только с даты: {TRAIN_START_DATE}")
 # ==========================================================
 # Baselines for financial time series (no leakage)
 # Supports tasks via env:
