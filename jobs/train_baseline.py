@@ -46,12 +46,12 @@ load_dotenv()
 
 import sys
 from pathlib import Path
-
 # === ИСПРАВЛЕНИЕ ПУТЕЙ ===
 project_root = str(Path(__file__).resolve().parents[1])
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
+TRAIN_START_DATE = "2022-01-01"
 # ==========================================================
 # Baselines for financial time series (no leakage)
 # Supports tasks via env:
@@ -1079,70 +1079,44 @@ class SoftVoteLogregHGBClassifier(BaseEstimator, ClassifierMixin):
 
 
 def make_models(task: str):
-    """УЛУЧШЕННЫЙ НАБОР МОДЕЛЕЙ — настоящая гибридность + полная совместимость"""
+    """Улучшенный hybrid ensemble (совместим с get_model_by_name)"""
     if task == "direction":
-        logreg = Pipeline([
-            ("scaler", StandardScaler()),
-            ("model", LogisticRegression(max_iter=2000, class_weight="balanced", random_state=RANDOM_STATE))
-        ])
+        logreg = Pipeline([("scaler", StandardScaler()), ("clf", LogisticRegression(max_iter=1000, random_state=42))])
+        hgb = LGBMClassifier(n_estimators=400, learning_rate=0.05, max_depth=7, random_state=42)
+        xgb = XGBClassifier(n_estimators=400, learning_rate=0.05, max_depth=7, random_state=42, eval_metric='logloss')
+        lgbm = LGBMClassifier(n_estimators=500, learning_rate=0.03, max_depth=8, random_state=42)
 
-        hgb = HistGradientBoostingClassifier(
-            max_iter=400, learning_rate=0.05, max_depth=6,
-            l2_regularization=1.0, random_state=RANDOM_STATE
+        hybrid = VotingClassifier(
+            estimators=[
+                ('logreg', logreg),
+                ('hgb', hgb),
+                ('xgb', xgb),
+                ('lgbm', lgbm),
+            ],
+            voting='soft',
+            weights=[1, 2, 2, 3]
         )
-
-        xgb = XGBClassifier(
-            n_estimators=400, max_depth=6, learning_rate=0.05,
-            subsample=0.8, colsample_bytree=0.8, eval_metric="auc",
-            random_state=RANDOM_STATE, use_label_encoder=False
-        )
-
-        lgbm = LGBMClassifier(
-            n_estimators=400, max_depth=6, learning_rate=0.05,
-            num_leaves=31, random_state=RANDOM_STATE
-        )
-
-        hybrid_voting = VotingClassifier([
-            ('logreg', logreg),
-            ('hgb', hgb),
-            ('xgb', xgb),
-            ('lgbm', lgbm)
-        ], voting='soft')
 
         return [
-            ("LOGREG", logreg, "Logistic Regression balanced"),
-            ("HGB", hgb, "HistGradientBoosting"),
-            ("XGB", xgb, "XGBoost"),
-            ("LGBM", lgbm, "LightGBM"),
-            ("HYBRID_VOTING", hybrid_voting, "ГИБРИД: Soft Voting (LogReg + HGB + XGB + LGBM)"),
+            ("LOGREG", logreg, ""),
+            ("HGB", hgb, ""),
+            ("XGB", xgb, ""),
+            ("LGBM", lgbm, ""),
+            ("HYBRID_VOTING", hybrid, "soft-voting ensemble"),
         ]
 
-    # Для volatility — добавил обратно все старые модели + новые
-    if task in ("return", "volatility"):
-        hgb = HistGradientBoostingRegressor(
-            max_iter=400, learning_rate=0.05, max_depth=6,
-            l2_regularization=1.0, random_state=RANDOM_STATE
-        )
-        xgb = XGBRegressor(
-            n_estimators=400, max_depth=6, learning_rate=0.05,
-            subsample=0.8, colsample_bytree=0.8, random_state=RANDOM_STATE
-        )
-        lgbm = LGBMRegressor(
-            n_estimators=400, max_depth=6, learning_rate=0.05,
-            num_leaves=31, random_state=RANDOM_STATE
-        )
-        rf = RandomForestRegressor(n_estimators=800, min_samples_leaf=10, random_state=RANDOM_STATE, n_jobs=-1)
-        et = ExtraTreesRegressor(n_estimators=1200, min_samples_leaf=10, random_state=RANDOM_STATE, n_jobs=-1)
+    elif task == "volatility":
+        extratrees = ExtraTreesRegressor(n_estimators=500, max_depth=12, random_state=42)
+        xgb = XGBRegressor(n_estimators=500, learning_rate=0.05, max_depth=8, random_state=42)
+        lgbm = LGBMRegressor(n_estimators=600, learning_rate=0.03, max_depth=9, random_state=42)
 
         return [
-            ("HGB", hgb, "HistGradientBoosting"),
-            ("XGB", xgb, "XGBoost"),
-            ("LGBM", lgbm, "LightGBM"),
-            ("RANDOMFOREST", rf, "RandomForest"),
-            ("EXTRATREES", et, "ExtraTrees"),
+            ("EXTRATREES", extratrees, ""),
+            ("XGB", xgb, ""),
+            ("LGBM", lgbm, ""),
         ]
 
-    raise ValueError(f"Unknown task: {task}")
+    return []
 
 
 def eval_one_split_reg(sym: str, fold: int, split_name: str, task: str, y_true, y_pred, n_rows: int, model_name: str, extra: str, out: list[RowReg]):
@@ -1636,26 +1610,28 @@ def main() -> None:
             text(
                 """
                 SELECT symbol, date,
-                       open, high, low, close, volume,
-                       return_1d, log_return,
-                       sma_5, volatility_5,
-                       sma_10, volatility_10,
-                       sma_20, volatility_20,
-                       return_lag_1, return_lag_2, return_lag_3, return_lag_4, return_lag_5,
-                       mkt_return_1d, mkt_log_return, mkt_mom_5, mkt_mom_10, mkt_mom_20, mkt_vol_20,
-                       vix_level, vix_return_1d, vix_change_1d,
-                       irx_level, irx_change_1d,
-                       tnx_level, tnx_change_1d
+                    open, high, low, close, volume,
+                    return_1d, log_return,
+                    sma_5, volatility_5,
+                    sma_10, volatility_10,
+                    sma_20, volatility_20,
+                    return_lag_1, return_lag_2, return_lag_3, return_lag_4, return_lag_5,
+                    mkt_return_1d, mkt_log_return, mkt_mom_5, mkt_mom_10, mkt_mom_20, mkt_vol_20,
+                    vix_level, vix_return_1d, vix_change_1d,
+                    irx_level, irx_change_1d,
+                    tnx_level, tnx_change_1d
                 FROM features_daily
                 WHERE symbol = :symbol
+                AND date >= :start_date
                 ORDER BY date
                 """
             ),
             con=engine,
-            params={"symbol": sym},
+            params={"symbol": sym, "start_date": TRAIN_START_DATE},
             parse_dates=["date"],
         )
 
+        print(f"[INFO] {sym}: отфильтровано до данных с {TRAIN_START_DATE} → {len(df)} строк")
         if df.empty:
             print(f"[WARN] {sym}: empty, skip")
             continue
