@@ -1,0 +1,12 @@
+.env
+.env.local
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.DS_Store
+artifacts/models/
+*.pkl
+.idea/
+.vscode/

@@ -23,7 +23,11 @@ from sklearn.ensemble import (
     RandomForestClassifier,
     ExtraTreesClassifier,
     VotingClassifier,
+    StackingClassifier,
+    StackingRegressor,
+    GradientBoostingClassifier,
 )
+from sklearn.model_selection import TimeSeriesSplit
 from sklearn.base import BaseEstimator, RegressorMixin, ClassifierMixin
 
 # === НОВЫЕ СИЛЬНЫЕ МОДЕЛИ ===
@@ -507,23 +511,61 @@ def get_model_by_name(task: str, name: str):
     raise ValueError(f"Unknown model '{name}' for task='{task}'")
 
 
-def infer_latest_for_symbol(df: pd.DataFrame, sym: str, best_dir: str, best_vol: str) -> dict | None:
-    """Финальная версия: всегда берёт самую свежую цену"""
+MODELS_DIR = Path(os.environ.get("MODELS_DIR", "artifacts/models"))
+MODELS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _model_path(sym: str, task: str, name: str, horizon: int) -> Path:
+    safe_sym = sym.replace("^", "_")
+    return MODELS_DIR / f"{safe_sym}_{task}_{name}_k{horizon}.joblib"
+
+
+def _load_or_train_model(sym: str, task: str, name: str, X_train: np.ndarray, y_train: np.ndarray, force_retrain: bool = False):
+    """Кэшированная тренировка: если модель уже сохранена и свежая — берём с диска."""
+    import joblib
+    path = _model_path(sym, task, name, HORIZON_DAYS)
+    if path.exists() and not force_retrain:
+        try:
+            payload = joblib.load(path)
+            n_trained = int(payload.get("n_train_rows", 0))
+            # Если объём данных вырос больше чем на 5 строк — переобучаем
+            if abs(n_trained - len(X_train)) <= 5:
+                return payload["model"]
+        except Exception as e:
+            print(f"[WARN] Не удалось загрузить {path}: {e} — переобучаем")
+
+    model, _ = get_model_by_name(task, name)
+    model.fit(X_train, y_train)
+    try:
+        joblib.dump({"model": model, "n_train_rows": len(X_train),
+                     "saved_at": pd.Timestamp.utcnow().isoformat()}, path)
+        print(f"[CACHE] Модель сохранена: {path}")
+    except Exception as e:
+        print(f"[WARN] Не удалось сохранить модель {path}: {e}")
+    return model
+
+
+def infer_latest_for_symbol(df: pd.DataFrame, sym: str, best_dir: str, best_vol: str,
+                            engine=None, force_retrain: bool = False) -> dict | None:
+    """Инференс на самую свежую дату с кэшированием обученных моделей."""
     df2, feature_cols = build_feature_matrix(df)
     if df2.empty or not feature_cols:
         print(f"[WARN] {sym}: cannot infer (no usable features)")
         return None
 
-    # Берём самую последнюю доступную дату из цен
-    engine = create_engine("postgresql+psycopg://stock:stockpass@localhost:5432/stockdb")
+    if engine is None:
+        engine = create_engine(get_env("DATABASE_URL"), pool_pre_ping=True)
+
     latest_price = pd.read_sql_query(
         text("SELECT date FROM market_ohlcv WHERE symbol = :symbol ORDER BY date DESC LIMIT 1"),
         engine, params={"symbol": sym}
     )
+    if latest_price.empty:
+        print(f"[WARN] {sym}: нет цен в market_ohlcv")
+        return None
     latest_date = pd.to_datetime(latest_price["date"].iloc[0])
     print(f"[DEBUG] Latest price date used for {sym}: {latest_date.date()}")
 
-    # Берём строку фич, ближайшую к этой дате
     latest = df2[df2["date"] <= latest_date].sort_values("date").iloc[[-1]].copy()
 
     labeled = compute_targets(df2.copy(), HORIZON_DAYS)
@@ -535,37 +577,66 @@ def infer_latest_for_symbol(df: pd.DataFrame, sym: str, best_dir: str, best_vol:
     X_latest = latest[feature_cols].values
     feature_names = feature_cols
 
-    # Direction
-    dir_model, _ = get_model_by_name("direction", best_dir)
+    # === Direction ===
     y_dir = labeled["target_direction"].values
-    dir_model.fit(X_train, y_dir)
+    dir_model = _load_or_train_model(sym, "direction", best_dir, X_train, y_dir, force_retrain)
 
     if hasattr(dir_model, "predict_proba"):
-        p_up = float(dir_model.predict_proba(X_latest)[:, 1][0])
+        p_up_raw = float(dir_model.predict_proba(X_latest)[:, 1][0])
     else:
         s = float(dir_model.decision_function(X_latest)[0])
-        p_up = float(1.0 / (1.0 + np.exp(-s)))
+        p_up_raw = float(1.0 / (1.0 + np.exp(-s)))
 
-    compute_and_save_shap(dir_model, X_latest, feature_names, f"{sym}_direction")
+    # === AUC<0.5 fallback ===
+    # Читаем зарегистрированный AUC и если <0.5 — используем константный baseline (доля положительных в train).
+    p_up = p_up_raw
+    auc_reg = _get_registered_auc(sym, HORIZON_DAYS)
+    if auc_reg is not None and auc_reg < 0.50:
+        baseline_p = float(np.mean(y_dir == 1))
+        print(f"[FALLBACK] {sym}: registry AUC={auc_reg:.3f} < 0.50 — использую BASELINE_CONST p={baseline_p:.3f} вместо {best_dir}")
+        p_up = baseline_p
 
-    # Volatility
-    vol_model, _ = get_model_by_name("volatility", best_vol)
+    try:
+        compute_and_save_shap(dir_model, X_latest, feature_names, f"{sym}_direction")
+    except Exception as e:
+        print(f"[WARN] SHAP direction для {sym} не посчитан: {e}")
+
+    # === Volatility ===
     y_vol = labeled["target_vol_kd"].values
-    vol_model.fit(X_train, y_vol)
+    vol_model = _load_or_train_model(sym, "volatility", best_vol, X_train, y_vol, force_retrain)
     vol_pred = float(vol_model.predict(X_latest)[0])
+    vol_pred = max(0.0, vol_pred)  # волатильность не может быть отрицательной
 
-    compute_and_save_shap(vol_model, X_latest, feature_names, f"{sym}_volatility")
+    try:
+        compute_and_save_shap(vol_model, X_latest, feature_names, f"{sym}_volatility")
+    except Exception as e:
+        print(f"[WARN] SHAP volatility для {sym} не посчитан: {e}")
 
-    out = {
+    return {
         "symbol": sym,
         "asof_date": str(latest_date.date()),
         "horizon_days": int(HORIZON_DAYS),
         "direction_model": str(best_dir),
         "p_up": p_up,
+        "p_up_raw": p_up_raw,
+        "auc_registered": auc_reg if auc_reg is not None else float("nan"),
         "volatility_model": str(best_vol),
         "vol_pred": vol_pred,
     }
-    return out
+
+
+def _get_registered_auc(symbol: str, horizon_days: int) -> float | None:
+    """Читает AUC лучшей direction-модели из реестра."""
+    reg = _read_registry_safe(horizon_days)
+    if reg.empty or not {"task", "symbol", "metric_value"}.issubset(reg.columns):
+        return None
+    part = reg[(reg["task"] == "direction") & (reg["symbol"] == symbol)]
+    if part.empty:
+        return None
+    try:
+        return float(part["metric_value"].iloc[-1])
+    except Exception:
+        return None
 
 
 def run_infer(engine) -> None:
@@ -635,7 +706,7 @@ def run_infer(engine) -> None:
         best_dir = selected.get("direction", {}).get(sym, default_dir)
         best_vol = selected.get("volatility", {}).get(sym, default_vol)
 
-        r = infer_latest_for_symbol(df, sym, best_dir, best_vol)
+        r = infer_latest_for_symbol(df, sym, best_dir, best_vol, engine=engine)
         if r is not None:
             rows.append(r)
 
@@ -1081,22 +1152,63 @@ class SoftVoteLogregHGBClassifier(BaseEstimator, ClassifierMixin):
 
 
 def make_models(task: str):
-    """Улучшенный hybrid ensemble (совместим с get_model_by_name)"""
-    if task == "direction":
-        logreg = Pipeline([("scaler", StandardScaler()), ("clf", LogisticRegression(max_iter=1000, random_state=42))])
-        hgb = LGBMClassifier(n_estimators=400, learning_rate=0.05, max_depth=7, random_state=42)
-        xgb = XGBClassifier(n_estimators=400, learning_rate=0.05, max_depth=7, random_state=42, eval_metric='logloss')
-        lgbm = LGBMClassifier(n_estimators=500, learning_rate=0.03, max_depth=8, random_state=42)
+    """Улучшенный гибридный ensemble.
 
-        hybrid = VotingClassifier(
-            estimators=[
-                ('logreg', logreg),
-                ('hgb', hgb),
-                ('xgb', xgb),
-                ('lgbm', lgbm),
-            ],
-            voting='soft',
-            weights=[1, 2, 2, 3]
+    Direction:
+      LOGREG (с масштабированием), HGB (sklearn), XGB, LGBM, RF,
+      HYBRID_VOTING (soft-vote с весами по силе модели),
+      HYBRID_STACK (Stacking с мета-моделью LogReg на TimeSeriesSplit).
+
+    Volatility:
+      EXTRATREES, XGB, LGBM, HGB,
+      HYBRID_STACK_REG (Stacking с мета-моделью Ridge).
+    """
+    if task == "direction":
+        logreg = Pipeline([
+            ("scaler", StandardScaler()),
+            ("clf", LogisticRegression(max_iter=2000, C=0.5, class_weight="balanced", random_state=RANDOM_STATE)),
+        ])
+        hgb = HistGradientBoostingClassifier(
+            max_depth=4, learning_rate=0.04, max_iter=600,
+            l2_regularization=1.0, min_samples_leaf=30,
+            class_weight="balanced", random_state=RANDOM_STATE,
+        )
+        xgb = XGBClassifier(
+            n_estimators=400, learning_rate=0.05, max_depth=6,
+            subsample=0.85, colsample_bytree=0.85,
+            reg_lambda=1.5, reg_alpha=0.1,
+            eval_metric="logloss", random_state=RANDOM_STATE, n_jobs=-1, verbosity=0,
+        )
+        lgbm = LGBMClassifier(
+            n_estimators=500, learning_rate=0.03, max_depth=7, num_leaves=63,
+            subsample=0.85, colsample_bytree=0.85,
+            reg_lambda=1.5, reg_alpha=0.1,
+            class_weight="balanced", random_state=RANDOM_STATE, n_jobs=-1, verbose=-1,
+        )
+        rf = RandomForestClassifier(
+            n_estimators=400, max_depth=10, min_samples_leaf=20,
+            class_weight="balanced", random_state=RANDOM_STATE, n_jobs=-1,
+        )
+
+        # Soft-voting (быстрый гибрид)
+        voting = VotingClassifier(
+            estimators=[("logreg", logreg), ("hgb", hgb), ("xgb", xgb), ("lgbm", lgbm), ("rf", rf)],
+            voting="soft", weights=[1, 2, 2, 3, 1],
+        )
+
+        # Stacking — мета-модель учится комбинировать предсказания базовых
+        # на time-series CV (без leak'а по времени).
+        try:
+            ts_cv = TimeSeriesSplit(n_splits=4)
+        except Exception:
+            ts_cv = 4
+        stacking = StackingClassifier(
+            estimators=[("logreg", logreg), ("hgb", hgb), ("xgb", xgb), ("lgbm", lgbm), ("rf", rf)],
+            final_estimator=LogisticRegression(max_iter=2000, C=1.0, random_state=RANDOM_STATE),
+            stack_method="predict_proba",
+            passthrough=False,
+            cv=ts_cv,
+            n_jobs=1,
         )
 
         return [
@@ -1104,18 +1216,52 @@ def make_models(task: str):
             ("HGB", hgb, ""),
             ("XGB", xgb, ""),
             ("LGBM", lgbm, ""),
-            ("HYBRID_VOTING", hybrid, "soft-voting ensemble"),
+            ("RF", rf, ""),
+            ("HYBRID_VOTING", voting, "soft-voting ensemble"),
+            ("HYBRID_STACK", stacking, "stacking with TimeSeriesSplit meta-LogReg"),
         ]
 
     elif task == "volatility":
-        extratrees = ExtraTreesRegressor(n_estimators=500, max_depth=12, random_state=42)
-        xgb = XGBRegressor(n_estimators=500, learning_rate=0.05, max_depth=8, random_state=42)
-        lgbm = LGBMRegressor(n_estimators=600, learning_rate=0.03, max_depth=9, random_state=42)
+        extratrees = ExtraTreesRegressor(
+            n_estimators=500, max_depth=12, min_samples_leaf=10,
+            random_state=RANDOM_STATE, n_jobs=-1,
+        )
+        xgb = XGBRegressor(
+            n_estimators=500, learning_rate=0.05, max_depth=6,
+            subsample=0.85, colsample_bytree=0.85,
+            reg_lambda=1.5, reg_alpha=0.1,
+            random_state=RANDOM_STATE, n_jobs=-1, verbosity=0,
+        )
+        lgbm = LGBMRegressor(
+            n_estimators=600, learning_rate=0.03, max_depth=7, num_leaves=63,
+            subsample=0.85, colsample_bytree=0.85,
+            reg_lambda=1.5, reg_alpha=0.1,
+            random_state=RANDOM_STATE, n_jobs=-1, verbose=-1,
+        )
+        hgb = HistGradientBoostingRegressor(
+            max_depth=4, learning_rate=0.04, max_iter=600,
+            l2_regularization=1.0, min_samples_leaf=30, random_state=RANDOM_STATE,
+        )
+
+        try:
+            ts_cv = TimeSeriesSplit(n_splits=4)
+        except Exception:
+            ts_cv = 4
+
+        stack_reg = StackingRegressor(
+            estimators=[("et", extratrees), ("xgb", xgb), ("lgbm", lgbm), ("hgb", hgb)],
+            final_estimator=Ridge(alpha=1.0),
+            cv=ts_cv,
+            passthrough=False,
+            n_jobs=1,
+        )
 
         return [
             ("EXTRATREES", extratrees, ""),
             ("XGB", xgb, ""),
             ("LGBM", lgbm, ""),
+            ("HGB", hgb, ""),
+            ("HYBRID_STACK_REG", stack_reg, "stacking regressor with Ridge meta"),
         ]
 
     return []
@@ -1751,6 +1897,15 @@ def main() -> None:
                 print(best[["symbol", "model", "auc_mean", "auc_delta_vs_base", "balacc_mean"]].to_string(index=False))
                 best_df = best.reset_index(drop=True).copy()
                 save_model_registry("direction", HORIZON_DAYS, best_df)
+
+    # После walk-forward инвалидируем закэшированные joblib-модели,
+    # чтобы при следующем infer они переобучились на актуальных данных.
+    try:
+        for p in MODELS_DIR.glob("*.joblib"):
+            p.unlink()
+        print(f"[CACHE] Очищен кэш моделей: {MODELS_DIR}")
+    except Exception as e:
+        print(f"[WARN] Не удалось очистить кэш моделей: {e}")
 
     print("\n[DONE] Finished.")
     print(f"[ARTIFACT] Saved metrics to: {OUT_PATH}")

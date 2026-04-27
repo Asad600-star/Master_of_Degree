@@ -3,66 +3,116 @@ import numpy as np
 import pandas as pd
 import json
 from pathlib import Path
-import warnings
 from sklearn.pipeline import Pipeline
-from sklearn.ensemble import VotingClassifier
-from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import VotingClassifier, StackingClassifier
 
 ARTIFACTS = Path("artifacts")
 ARTIFACTS.mkdir(exist_ok=True)
 
-def compute_and_save_shap(model, X_latest: np.ndarray, feature_names: list, symbol_task: str):
-    """Финальная версия SHAP — поддерживает VotingClassifier, Pipeline, LogReg, XGBoost, LightGBM"""
-    print(f"[SHAP DEBUG] Запуск для {symbol_task}...")
+
+def _transform_X_through_pipeline(pipe: Pipeline, X: np.ndarray) -> tuple[np.ndarray, object]:
+    """Применяем все шаги пайплайна КРОМЕ последнего (модели) к X.
+
+    Возвращаем (X_transformed, final_estimator).
+    """
+    if not isinstance(pipe, Pipeline):
+        return X, pipe
+    steps = pipe.steps
+    final_name, final_est = steps[-1]
+    X_t = X
+    for name, step in steps[:-1]:
+        X_t = step.transform(X_t)
+    return np.asarray(X_t), final_est
+
+
+def _explain_one(estimator, X_for_explainer: np.ndarray, X_background: np.ndarray) -> tuple[np.ndarray, float]:
+    """SHAP для одной модели (после извлечения из pipeline)."""
+    is_tree_based = (
+        hasattr(estimator, "feature_importances_")
+        or hasattr(estimator, "estimators_")
+        or "tree" in str(type(estimator)).lower()
+        or "boost" in str(type(estimator)).lower()
+        or "forest" in str(type(estimator)).lower()
+    )
+
+    if is_tree_based:
+        explainer = shap.TreeExplainer(estimator)
+        sv = explainer.shap_values(X_for_explainer)
+        if isinstance(sv, list):
+            sv = sv[1] if len(sv) > 1 else sv[0]
+        ev = explainer.expected_value
+        if isinstance(ev, (list, np.ndarray)):
+            ev = float(np.asarray(ev).flatten()[-1])
+        return np.asarray(sv), float(ev)
+
+    # Линейные модели
+    explainer = shap.LinearExplainer(estimator, X_background)
+    sv = explainer.shap_values(X_for_explainer)
+    ev = explainer.expected_value
+    if isinstance(ev, (list, np.ndarray)):
+        ev = float(np.asarray(ev).flatten()[0])
+    return np.asarray(sv), float(ev)
+
+
+def compute_and_save_shap(model, X_latest: np.ndarray, feature_names: list, symbol_task: str,
+                           X_background: np.ndarray | None = None):
+    """Корректный SHAP для Voting/Stacking/Pipeline/обычной модели.
+    StandardScaler внутри Pipeline применяется до Explainer.
+    """
+    print(f"[SHAP] {symbol_task}: запуск...")
+    X_latest = np.asarray(X_latest)
+    X_background = np.asarray(X_background) if X_background is not None else X_latest
 
     try:
-        # Если это Pipeline — берём только саму модель
-        if isinstance(model, Pipeline):
-            model = model.named_steps[list(model.named_steps.keys())[-1]]
-
-        # === ОБРАБОТКА ГИБРИДНОЙ МОДЕЛИ (VotingClassifier) ===
-        if isinstance(model, VotingClassifier):
-            print(f"[SHAP] Обнаружен VotingClassifier — усредняем SHAP от всех моделей")
+        if isinstance(model, (VotingClassifier, StackingClassifier)):
+            print(f"[SHAP] {symbol_task}: ансамбль ({type(model).__name__})")
             shap_values_list = []
             base_values = []
-
-            for name, estimator in model.named_estimators_.items():
-                if isinstance(estimator, Pipeline):
-                    estimator = estimator.named_steps[list(estimator.named_steps.keys())[-1]]
-
-                if isinstance(estimator, LogisticRegression):
-                    explainer = shap.LinearExplainer(estimator, X_latest)
+            estimators = (
+                list(model.named_estimators_.items())
+                if hasattr(model, "named_estimators_") else
+                list(zip([f"e{i}" for i in range(len(model.estimators_))], model.estimators_))
+            )
+            for name, est in estimators:
+                if isinstance(est, Pipeline):
+                    Xl, final_est = _transform_X_through_pipeline(est, X_latest)
+                    Xb, _ = _transform_X_through_pipeline(est, X_background)
                 else:
-                    explainer = shap.TreeExplainer(estimator)
+                    Xl, final_est = X_latest, est
+                    Xb = X_background
 
-                sv = explainer.shap_values(X_latest)
-                if isinstance(sv, list):
-                    sv = sv[1] if len(sv) > 1 else sv[0]
+                try:
+                    sv, ev = _explain_one(final_est, Xl, Xb)
+                    shap_values_list.append(sv)
+                    base_values.append(ev)
+                except Exception as e:
+                    print(f"[SHAP] {symbol_task}: пропустил {name} ({e})")
 
-                shap_values_list.append(sv)
-                base_values.append(float(explainer.expected_value) if not isinstance(explainer.expected_value, np.ndarray) else float(explainer.expected_value[0]))
+            if not shap_values_list:
+                raise RuntimeError("Не удалось посчитать SHAP ни для одной подмодели")
 
-            shap_values = np.mean(shap_values_list, axis=0)
-            base_value = np.mean(base_values)
+            arr = np.stack([np.asarray(s).reshape(len(X_latest), -1) for s in shap_values_list], axis=0)
+            shap_values = arr.mean(axis=0)
+            base_value = float(np.mean(base_values))
 
-        # === Обычные модели ===
+        elif isinstance(model, Pipeline):
+            Xl, final_est = _transform_X_through_pipeline(model, X_latest)
+            Xb, _ = _transform_X_through_pipeline(model, X_background)
+            shap_values, base_value = _explain_one(final_est, Xl, Xb)
+
         else:
-            if hasattr(model, "feature_importances_") or hasattr(model, "estimators_") or "tree" in str(type(model)).lower():
-                explainer = shap.TreeExplainer(model)
-                shap_values = explainer.shap_values(X_latest)
-                if isinstance(shap_values, list):
-                    shap_values = shap_values[1] if len(shap_values) > 1 else shap_values[0]
-            else:
-                explainer = shap.LinearExplainer(model, X_latest)
-                shap_values = explainer.shap_values(X_latest)
+            shap_values, base_value = _explain_one(model, X_latest, X_background)
 
-            base_value = float(explainer.expected_value) if not isinstance(explainer.expected_value, np.ndarray) else float(explainer.expected_value[0])
+        sv_arr = np.asarray(shap_values)
+        if sv_arr.ndim == 1:
+            sv_arr = sv_arr.reshape(1, -1)
 
-        # Сохраняем результат
+        first_row = sv_arr[0].tolist()
+
         result = {
             "symbol_task": symbol_task,
-            "shap_values": shap_values.tolist() if hasattr(shap_values, "tolist") else list(shap_values),
-            "feature_names": feature_names,
+            "shap_values": first_row,
+            "feature_names": list(feature_names),
             "base_value": float(base_value),
             "generated_at": pd.Timestamp.utcnow().isoformat()
         }
@@ -71,9 +121,9 @@ def compute_and_save_shap(model, X_latest: np.ndarray, feature_names: list, symb
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
 
-        print(f"[SHAP SUCCESS] Файл сохранён: {filepath}")
+        print(f"[SHAP] {symbol_task}: сохранено → {filepath}")
         return result
 
     except Exception as e:
-        print(f"[SHAP ERROR] Не удалось сохранить {symbol_task}: {e}")
+        print(f"[SHAP ERROR] {symbol_task}: {e}")
         return None

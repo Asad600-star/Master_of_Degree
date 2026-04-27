@@ -1,22 +1,41 @@
 import asyncio
+import os
 import sys
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
+from threading import Lock
 
-from aiogram import Bot, Dispatcher, types
+from dotenv import load_dotenv
+from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
-from aiogram import F
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-# Подключаем ядро
-sys.path.insert(0, "/Users/asadbekikromov/Documents/GitHub/Master_of_Degree")
+# === Подключаем корень проекта ===
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+load_dotenv(ROOT / ".env")
+
 from services.predict import get_prediction
 
-BOT_TOKEN = "8604575048:AAGPCScLAVACUn2YzNBtN5GMvEkLUm6CLSk"
+# === Логирование ===
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+)
+log = logging.getLogger("bot")
 
-USERS_FILE = Path("/Users/asadbekikromov/Documents/GitHub/Master_of_Degree/users.json")
+BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+if not BOT_TOKEN or BOT_TOKEN.startswith("PUT_"):
+    raise RuntimeError(
+        "TELEGRAM_BOT_TOKEN не задан в .env. "
+        "Отзови старый через @BotFather (/revoke) и пропиши новый в .env."
+    )
+
+USERS_FILE = ROOT / "users.json"
+USERS_LOCK = Lock()
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -30,25 +49,36 @@ keyboard = ReplyKeyboardMarkup(
         [KeyboardButton(text="Все прогнозы")],
     ],
     resize_keyboard=True,
-    persistent=True
+    persistent=True,
 )
 
-def load_users():
-    if USERS_FILE.exists():
-        with open(USERS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {}
 
-def save_users(users):
-    with open(USERS_FILE, "w", encoding="utf-8") as f:
-        json.dump(users, f, ensure_ascii=False, indent=2)
+# ==================== USERS PERSISTENCE ====================
+def load_users() -> dict:
+    with USERS_LOCK:
+        if USERS_FILE.exists():
+            try:
+                with open(USERS_FILE, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception as e:
+                log.error("users.json повреждён: %s", e)
+        return {}
+
+
+def save_users(users_dict: dict) -> None:
+    with USERS_LOCK:
+        tmp = USERS_FILE.with_suffix(".json.tmp")
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(users_dict, f, ensure_ascii=False, indent=2)
+        tmp.replace(USERS_FILE)
+
 
 users = load_users()
 
-def update_user_info(message: types.Message):
+
+def update_user_info(message: types.Message) -> None:
     user = message.from_user
     chat_id = str(message.chat.id)
-    
     if chat_id not in users:
         users[chat_id] = {
             "username": user.username,
@@ -56,112 +86,119 @@ def update_user_info(message: types.Message):
             "last_name": user.last_name,
             "language_code": user.language_code,
             "subscribed_at": datetime.now().isoformat(),
-            "total_predictions": 0
+            "total_predictions": 0,
         }
-    
     users[chat_id]["last_active"] = datetime.now().isoformat()
     save_users(users)
 
-# ====================== СТАРТ ======================
+
+# ====================== HANDLERS ======================
 @dp.message(Command("start"))
 async def start_handler(message: types.Message):
     update_user_info(message)
     await message.answer(
-        "👋 Добро пожаловать!\n\n"
-        "Нажми кнопку ниже, чтобы получить прогноз:",
-        reply_markup=keyboard
+        "👋 Добро пожаловать!\n\nНажми кнопку ниже, чтобы получить прогноз:",
+        reply_markup=keyboard,
     )
+
 
 @dp.message(Command("me"))
 async def me_handler(message: types.Message):
     update_user_info(message)
     chat_id = str(message.chat.id)
     u = users.get(chat_id, {})
-    text = f"""
-📋 <b>Твоя информация</b>
-
-🆔 ID: <code>{chat_id}</code>
-👤 Имя: {u.get('first_name', '—')}
-📛 Username: @{u.get('username', '—')}
-🌍 Язык: {u.get('language_code', '—')}
-📅 Подписка: {u.get('subscribed_at', '—')[:10]}
-🕒 Последняя активность: {u.get('last_active', '—')[:16]}
-📊 Запросов: {u.get('total_predictions', 0)}
-    """.strip()
+    text = (
+        f"📋 <b>Твоя информация</b>\n\n"
+        f"🆔 ID: <code>{chat_id}</code>\n"
+        f"👤 Имя: {u.get('first_name', '—')}\n"
+        f"📛 Username: @{u.get('username', '—')}\n"
+        f"🌍 Язык: {u.get('language_code', '—')}\n"
+        f"📅 Подписка: {(u.get('subscribed_at') or '—')[:10]}\n"
+        f"🕒 Последняя активность: {(u.get('last_active') or '—')[:16]}\n"
+        f"📊 Запросов: {u.get('total_predictions', 0)}"
+    )
     await message.answer(text, parse_mode="HTML")
 
-# ====================== ПРОГНОЗ ПО КНОПКАМ ======================
+
+def _format_prediction(result: dict, lang: str = "ru") -> str:
+    if lang == "ru":
+        return (
+            f"📈 <b>{result['name_ru']} ({result['symbol']})</b>\n"
+            f"📅 {result['asof_date']}\n\n"
+            f"🔹 Рекомендация: <b>{result['recommendation_ru']}</b>\n"
+            f"🔹 Уверенность: {result['confidence_ru']}\n"
+            f"🔹 Риск: {result['risk_label_ru']}\n\n"
+            f"📊 Вероятность роста: <b>{result['p_up']:.1%}</b>\n"
+            f"📊 Волатильность: <b>{result['vol_pred']:.2%}</b>\n\n"
+            f"🛡️ {result['risk_summary_ru']}"
+        )
+    return (
+        f"📈 <b>{result.get('name_ru', result['symbol'])} ({result['symbol']})</b>\n"
+        f"📅 {result['asof_date']}\n\n"
+        f"🔹 Recommendation: <b>{result['recommendation_en']}</b>\n"
+        f"🔹 Confidence: {result['confidence_en']}\n"
+        f"🔹 Risk: {result['risk_label_en']}\n\n"
+        f"📊 P(up): <b>{result['p_up']:.1%}</b>\n"
+        f"📊 Volatility: <b>{result['vol_pred']:.2%}</b>\n\n"
+        f"🛡️ {result['risk_summary_en']}"
+    )
+
+
 @dp.message(F.text.in_({"AAPL", "TSLA", "^GSPC", "^IXIC", "Все прогнозы"}))
 async def quick_predict(message: types.Message):
     update_user_info(message)
     chat_id = str(message.chat.id)
-    users[chat_id]["total_predictions"] += 1
+    users[chat_id]["total_predictions"] = users[chat_id].get("total_predictions", 0) + 1
     save_users(users)
 
     if message.text == "Все прогнозы":
         symbols = ["AAPL", "TSLA", "^GSPC", "^IXIC"]
-        await message.answer("🔄 Отправляю все прогнозы...")
+        await message.answer("🔄 Считаю прогнозы…")
     else:
         symbols = [message.text]
 
     for symbol in symbols:
         try:
-            result = get_prediction(symbol, refresh=True)
-            text = f"""
-📈 <b>{result['name_ru']} ({result['symbol']})</b>
-📅 {result['asof_date']}
-
-🔹 Рекомендация: <b>{result['recommendation_ru']}</b>
-🔹 Уверенность: {result['confidence']}
-🔹 Риск: {result['risk_label_ru']}
-
-📊 Вероятность роста: <b>{result['p_up']:.1%}</b>
-📊 Волатильность: <b>{result['vol_pred']:.2%}</b>
-
-🛡️ {result['risk_summary_ru']}
-            """.strip()
-            await message.answer(text, parse_mode="HTML")
+            # refresh=False — используем закэшированные модели; обновление цен делает daily_update
+            result = get_prediction(symbol, refresh=False)
+            await message.answer(_format_prediction(result, lang="ru"), parse_mode="HTML")
         except Exception as e:
-            await message.answer(f"❌ Ошибка по {symbol}: {str(e)}")
+            log.exception("Ошибка прогноза для %s", symbol)
+            await message.answer(f"❌ Ошибка по {symbol}: {e}")
+
 
 # ====================== ЕЖЕДНЕВНАЯ РАССЫЛКА В 19:00 ======================
 async def send_daily_forecast():
     if not users:
         return
+    log.info("Запуск ежедневной рассылки на %d пользователей", len(users))
     symbols = ["AAPL", "TSLA", "^GSPC", "^IXIC"]
     for symbol in symbols:
         try:
             result = get_prediction(symbol, refresh=False)
-            text = f"""
-🔔 <b>Ежедневный прогноз • {datetime.now().strftime('%d.%m.%Y')}</b>
-
-📈 {result['name_ru']} ({result['symbol']})
-Рекомендация: <b>{result['recommendation_ru']}</b>
-Вероятность роста: <b>{result['p_up']:.1%}</b>
-Волатильность: <b>{result['vol_pred']:.2%}</b>
-            """.strip()
-            
+            text = (
+                f"🔔 <b>Ежедневный прогноз • {datetime.now().strftime('%d.%m.%Y')}</b>\n\n"
+                + _format_prediction(result, lang="ru")
+            )
             for chat_id in list(users.keys()):
                 try:
-                    await bot.send_message(int(chat_id), text)
-                except:
-                    pass
-        except:
-            pass
+                    await bot.send_message(int(chat_id), text, parse_mode="HTML")
+                except Exception as e:
+                    log.warning("Не удалось отправить %s в чат %s: %s", symbol, chat_id, e)
+        except Exception:
+            log.exception("Ошибка при подготовке прогноза для %s", symbol)
+
 
 # ====================== ЗАПУСК ======================
 async def main():
-    # Ежедневно в 19:00
-    scheduler.add_job(send_daily_forecast, 'cron', hour=19, minute=0)
-    
+    scheduler.add_job(send_daily_forecast, "cron", hour=19, minute=0)
     scheduler.start()
 
-    print("🤖 Бот запущен!")
-    print(f"Всего пользователей: {len(users)}")
-    print("✅ Ежедневные уведомления настроены на 19:00 каждый день")
-    print("Напиши /start в Telegram")
+    log.info("🤖 Бот запущен. Пользователей: %d", len(users))
+    log.info("✅ Ежедневная рассылка настроена на 19:00")
 
     await dp.start_polling(bot)
+
 
 if __name__ == "__main__":
     asyncio.run(main())

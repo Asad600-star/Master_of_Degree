@@ -1,14 +1,22 @@
-import streamlit as st
-import pandas as pd
+import os
+import sys
 import json
 from pathlib import Path
-import plotly.graph_objects as go
-import sys
 from datetime import datetime
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import streamlit as st
+import pandas as pd
+import plotly.graph_objects as go
+from dotenv import load_dotenv
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+load_dotenv(ROOT / ".env")
+
 from services.predict import get_prediction
 from sqlalchemy import create_engine, text
+
+DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql+psycopg://stock:stockpass@localhost:5432/stockdb")
 
 st.set_page_config(page_title="Stock Forecast", page_icon="📈", layout="wide")
 
@@ -32,9 +40,9 @@ symbol = st.sidebar.selectbox(
 )
 
 if st.sidebar.button("🔄 Обновить данные и прогноз" if is_ru else "🔄 Refresh", use_container_width=True):
-    with st.spinner("Обновление..."):
+    with st.spinner("Обновление..." if is_ru else "Refreshing..."):
         result = get_prediction(symbol, refresh=True)
-    st.success("✅ Обновлено!")
+    st.success("✅ Обновлено!" if is_ru else "✅ Done!")
 else:
     result = get_prediction(symbol, refresh=False)
 
@@ -42,59 +50,76 @@ st.subheader(f"{symbols[symbol]} • {result['asof_date']}")
 
 c1, c2, c3 = st.columns(3)
 with c1:
-    st.metric("Рекомендация", result["recommendation_ru"] if is_ru else result["recommendation_en"])
+    st.metric("Рекомендация" if is_ru else "Recommendation",
+              result["recommendation_ru"] if is_ru else result["recommendation_en"])
 with c2:
-    st.metric("Уверенность", result["confidence"].capitalize())
+    st.metric("Уверенность" if is_ru else "Confidence",
+              (result["confidence_ru"] if is_ru else result["confidence_en"]).capitalize())
 with c3:
-    st.metric("Риск", result["risk_label_ru"] if is_ru else result["risk_label_en"])
+    st.metric("Риск" if is_ru else "Risk",
+              result["risk_label_ru"] if is_ru else result["risk_label_en"])
 
-st.info(f"**Вероятность роста:** {result['p_up']:.1%} | **Ожидаемая волатильность (5 дней):** {result['vol_pred']:.2%}")
+if is_ru:
+    st.info(f"**Вероятность роста:** {result['p_up']:.1%} | **Ожидаемая волатильность (5 дней):** {result['vol_pred']:.2%}")
+else:
+    st.info(f"**Probability of rise:** {result['p_up']:.1%} | **Expected 5d volatility:** {result['vol_pred']:.2%}")
 
 st.subheader("🛡️ Risk Management")
-st.success(result["risk_summary_ru"] if is_ru else result["risk_summary_ru"])
+st.success(result["risk_summary_ru"] if is_ru else result["risk_summary_en"])
 
 # ==================== ГРАФИК ЦЕНЫ ====================
-st.subheader("📈 График цены + прогнозный коридор")
+st.subheader("📈 График цены + прогнозный коридор" if is_ru else "📈 Price + forecast band")
 
-engine = create_engine("postgresql+psycopg://stock:stockpass@localhost:5432/stockdb")
+engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 df_price = pd.read_sql_query(
-    text("SELECT date, close FROM market_ohlcv WHERE symbol = :sym ORDER BY date DESC LIMIT 60"),
+    text("SELECT date, close FROM market_ohlcv WHERE symbol = :sym ORDER BY date ASC"),
     engine, params={"sym": symbol}
 )
-df_price = df_price.sort_values("date")
+df_price = df_price.tail(60).reset_index(drop=True)
 
 fig = go.Figure()
-fig.add_trace(go.Scatter(x=df_price["date"], y=df_price["close"], name="Историческая цена", line=dict(color="#22c55e")))
+fig.add_trace(go.Scatter(
+    x=df_price["date"], y=df_price["close"],
+    name="Историческая цена" if is_ru else "Historical price",
+    line=dict(color="#22c55e")
+))
 
-last_close = df_price["close"].iloc[-1]
+last_close = float(df_price["close"].iloc[-1])
 dates_future = pd.date_range(start=df_price["date"].iloc[-1], periods=6, freq="B")[1:]
-upper = [last_close * (1 + result["vol_pred"] * (i/2)) for i in range(1,6)]
-lower = [last_close * (1 - result["vol_pred"] * (i/2)) for i in range(1,6)]
+# Корректнее: коридор расширяется как sqrt(t) (классическая стохастика)
+import numpy as np
+sigma = float(result["vol_pred"])
+upper = [last_close * (1 + sigma * np.sqrt(i)) for i in range(1, 6)]
+lower = [last_close * (1 - sigma * np.sqrt(i)) for i in range(1, 6)]
 
-fig.add_trace(go.Scatter(x=dates_future, y=upper, mode="lines", line=dict(color="rgba(34,197,94,0.4)"), name="Верхний коридор"))
-fig.add_trace(go.Scatter(x=dates_future, y=lower, mode="lines", line=dict(color="rgba(234,179,8,0.4)"), name="Нижний коридор", fill="tonexty"))
+fig.add_trace(go.Scatter(x=dates_future, y=upper, mode="lines",
+                         line=dict(color="rgba(34,197,94,0.4)"),
+                         name="Верхний коридор" if is_ru else "Upper band"))
+fig.add_trace(go.Scatter(x=dates_future, y=lower, mode="lines",
+                         line=dict(color="rgba(234,179,8,0.4)"),
+                         name="Нижний коридор" if is_ru else "Lower band",
+                         fill="tonexty"))
 
-fig.update_layout(height=500, template="plotly_dark", title=f"{symbol} — Последние 60 дней + прогноз")
+fig.update_layout(height=500, template="plotly_dark",
+                  title=f"{symbol} — {'Последние 60 дней + прогноз' if is_ru else 'Last 60 days + forecast'}")
 st.plotly_chart(fig, use_container_width=True)
 
-# ==================== КРАСИВЫЙ SHAP ====================
-st.subheader("🔍 Почему модель решила именно так? (SHAP)")
+# ==================== SHAP ====================
+st.subheader("🔍 Почему модель решила именно так? (SHAP)" if is_ru else "🔍 Why did the model decide so? (SHAP)")
 
-shap_file = Path("artifacts") / f"shap_{symbol}_direction.json"
+shap_file = ROOT / "artifacts" / f"shap_{symbol}_direction.json"
 if shap_file.exists():
     with open(shap_file, encoding="utf-8") as f:
         data = json.load(f)
-    
+
     shap_values = data["shap_values"]
-    if isinstance(shap_values[0], list):
+    if isinstance(shap_values, list) and len(shap_values) > 0 and isinstance(shap_values[0], list):
         shap_values = shap_values[0]
-    
-    # Берём только топ-12 самых важных факторов
+
     top = sorted(zip(data["feature_names"], shap_values), key=lambda x: abs(x[1]), reverse=True)[:12]
     names = [name for name, _ in top]
     values = [val for _, val in top]
 
-    # Горизонтальный барчарт (гораздо читаемее)
     colors = ["#22c55e" if v > 0 else "#ef4444" for v in values]
     fig_shap = go.Figure(go.Bar(
         y=names[::-1],
@@ -107,18 +132,19 @@ if shap_file.exists():
     fig_shap.update_layout(
         height=500,
         template="plotly_dark",
-        title="Топ-12 факторов, которые повлияли на решение модели",
-        xaxis_title="Вклад в вероятность роста",
+        title="Топ-12 факторов, которые повлияли на решение модели" if is_ru else "Top-12 factors driving the prediction",
+        xaxis_title="Вклад в вероятность роста" if is_ru else "Contribution to P(up)",
         yaxis_title=""
     )
     st.plotly_chart(fig_shap, use_container_width=True)
 
-    # Таблица для дополнительной ясности
-    st.write("**Топ факторов (по силе влияния):**")
-    table_data = {"Фактор": names, "Вклад": [f"{v:+.4f}" for v in values]}
+    st.write("**Топ факторов (по силе влияния):**" if is_ru else "**Top factors (by impact):**")
+    table_data = {("Фактор" if is_ru else "Feature"): names,
+                  ("Вклад" if is_ru else "Contribution"): [f"{v:+.4f}" for v in values]}
     st.dataframe(pd.DataFrame(table_data), use_container_width=True)
 
 else:
-    st.info("SHAP-график будет доступен после следующего полного обновления модели.")
+    st.info("SHAP-график будет доступен после следующего полного обновления модели."
+            if is_ru else "SHAP plot will be available after the next full model update.")
 
-st.caption(f"Последнее обновление: {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}")
+st.caption(f"{'Последнее обновление' if is_ru else 'Last refresh'}: {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}")
