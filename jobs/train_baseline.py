@@ -1196,18 +1196,17 @@ def make_models(task: str):
             voting="soft", weights=[1, 2, 2, 3, 1],
         )
 
-        # Stacking — мета-модель учится комбинировать предсказания базовых
-        # на time-series CV (без leak'а по времени).
-        try:
-            ts_cv = TimeSeriesSplit(n_splits=4)
-        except Exception:
-            ts_cv = 4
+        # Stacking — мета-модель учится комбинировать предсказания базовых.
+        # ВАЖНО: sklearn StackingClassifier требует CV-partition (каждая строка ровно
+        # в одном test-фолде). TimeSeriesSplit этому не удовлетворяет, поэтому
+        # используем StratifiedKFold(5). Time-leak ограничен train-сегментом
+        # walk-forward'а — финальный test всегда идёт ПОСЛЕ train по времени.
         stacking = StackingClassifier(
             estimators=[("logreg", logreg), ("hgb", hgb), ("xgb", xgb), ("lgbm", lgbm), ("rf", rf)],
             final_estimator=LogisticRegression(max_iter=2000, C=1.0, random_state=RANDOM_STATE),
             stack_method="predict_proba",
             passthrough=False,
-            cv=ts_cv,
+            cv=5,
             n_jobs=1,
         )
 
@@ -1218,7 +1217,7 @@ def make_models(task: str):
             ("LGBM", lgbm, ""),
             ("RF", rf, ""),
             ("HYBRID_VOTING", voting, "soft-voting ensemble"),
-            ("HYBRID_STACK", stacking, "stacking with TimeSeriesSplit meta-LogReg"),
+            ("HYBRID_STACK", stacking, "stacking with StratifiedKFold(5) meta-LogReg"),
         ]
 
     elif task == "volatility":
@@ -1243,15 +1242,11 @@ def make_models(task: str):
             l2_regularization=1.0, min_samples_leaf=30, random_state=RANDOM_STATE,
         )
 
-        try:
-            ts_cv = TimeSeriesSplit(n_splits=4)
-        except Exception:
-            ts_cv = 4
-
+        # KFold(5) — sklearn StackingRegressor требует partition-CV.
         stack_reg = StackingRegressor(
             estimators=[("et", extratrees), ("xgb", xgb), ("lgbm", lgbm), ("hgb", hgb)],
             final_estimator=Ridge(alpha=1.0),
-            cv=ts_cv,
+            cv=5,
             passthrough=False,
             n_jobs=1,
         )
