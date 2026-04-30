@@ -7,7 +7,7 @@ return,5,AAPL,EXTRATREES,rmse_mean,0.0396632147077876,min rmse_mean on walk-forw
 return,5,TSLA,EXTRATREES,rmse_mean,0.0873534731733499,min rmse_mean on walk-forward test,2026-04-05T15:44:17.762783+00:00
 return,5,^GSPC,EXTRATREES,rmse_mean,0.0238639389663883,min rmse_mean on walk-forward test,2026-04-05T15:44:17.762783+00:00
 return,5,^IXIC,EXTRATREES,rmse_mean,0.0304354189219344,min rmse_mean on walk-forward test,2026-04-05T15:44:17.762783+00:00
-volatility,5,AAPL,EXTRATREES,rmse_mean,0.006417424339440308,min rmse_mean on walk-forward test,2026-04-08T15:17:08.468975+00:00
-volatility,5,TSLA,EXTRATREES,rmse_mean,0.011897188041983328,min rmse_mean on walk-forward test,2026-04-08T15:17:08.468975+00:00
-volatility,5,^GSPC,EXTRATREES,rmse_mean,0.004375991484841188,min rmse_mean on walk-forward test,2026-04-08T15:17:08.468975+00:00
-volatility,5,^IXIC,EXTRATREES,rmse_mean,0.006669181177865617,min rmse_mean on walk-forward test,2026-04-08T15:17:08.468975+00:00
+volatility,5,AAPL,EXTRATREES,rmse_mean,0.007104697597924368,min rmse_mean on walk-forward test,2026-04-30T16:35:05.857279+00:00
+volatility,5,TSLA,EXTRATREES,rmse_mean,0.013912870439526185,min rmse_mean on walk-forward test,2026-04-30T16:35:05.857279+00:00
+volatility,5,^GSPC,EXTRATREES,rmse_mean,0.00380908878354679,min rmse_mean on walk-forward test,2026-04-30T16:35:05.857279+00:00
+volatility,5,^IXIC,EXTRATREES,rmse_mean,0.004765486977784621,min rmse_mean on walk-forward test,2026-04-30T16:35:05.857279+00:00

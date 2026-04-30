@@ -1662,17 +1662,20 @@ def run_walk(df: pd.DataFrame, sym: str) -> tuple[list[RowReg], list[RowClf]]:
             y_fit = np.log1p(y_train_fit) if use_log else y_train_fit
 
             for name, model, extra in make_models(TASK):
-                model.fit(X_train, y_fit)
+                try:
+                    model.fit(X_train, y_fit)
 
-                pv = model.predict(X_val)
-                pt = model.predict(X_test)
+                    pv = model.predict(X_val)
+                    pt = model.predict(X_test)
 
-                if use_log:
-                    pv = np.expm1(pv)
-                    pt = np.expm1(pt)
+                    if use_log:
+                        pv = np.expm1(pv)
+                        pt = np.expm1(pt)
 
-                eval_one_split_reg(sym, fold, "val", TASK, y_val, pv, len(va), name, " ".join([extra, clip_extra]).strip(), results_reg)
-                eval_one_split_reg(sym, fold, "test", TASK, y_test, pt, len(te), name, " ".join([extra, clip_extra]).strip(), results_reg)
+                    eval_one_split_reg(sym, fold, "val", TASK, y_val, pv, len(va), name, " ".join([extra, clip_extra]).strip(), results_reg)
+                    eval_one_split_reg(sym, fold, "test", TASK, y_test, pt, len(te), name, " ".join([extra, clip_extra]).strip(), results_reg)
+                except Exception as exc:
+                    print(f"[WARN] {sym} fold={fold} model={name} skipped: {type(exc).__name__}: {exc}")
 
         else:
             y_train = tr["target_direction"].values
@@ -1689,19 +1692,22 @@ def run_walk(df: pd.DataFrame, sym: str) -> tuple[list[RowReg], list[RowClf]]:
             eval_one_split_clf(sym, fold, "test", TASK, y_test, (pt0 >= 0.5).astype(int), pt0, len(te), "BASELINE_CONST_FROM_TRAIN", 0.5, f"p_train={p:.3f}", results_clf)
 
             for name, model, extra in make_models(TASK):
-                model.fit(X_train, y_train)
-                if hasattr(model, "predict_proba"):
-                    pv = model.predict_proba(X_val)[:, 1]
-                    pt = model.predict_proba(X_test)[:, 1]
-                else:
-                    sv = model.decision_function(X_val)
-                    st = model.decision_function(X_test)
-                    pv = 1.0 / (1.0 + np.exp(-sv))
-                    pt = 1.0 / (1.0 + np.exp(-st))
+                try:
+                    model.fit(X_train, y_train)
+                    if hasattr(model, "predict_proba"):
+                        pv = model.predict_proba(X_val)[:, 1]
+                        pt = model.predict_proba(X_test)[:, 1]
+                    else:
+                        sv = model.decision_function(X_val)
+                        st = model.decision_function(X_test)
+                        pv = 1.0 / (1.0 + np.exp(-sv))
+                        pt = 1.0 / (1.0 + np.exp(-st))
 
-                t_best, f1_best = _best_threshold_f1(y_val, pv)
-                eval_one_split_clf(sym, fold, "val", TASK, y_val, (pv >= t_best).astype(int), pv, len(va), name, t_best, f"t_f1={f1_best:.4f} {extra}", results_clf)
-                eval_one_split_clf(sym, fold, "test", TASK, y_test, (pt >= t_best).astype(int), pt, len(te), name, t_best, f"t_f1={f1_best:.4f} {extra}", results_clf)
+                    t_best, f1_best = _best_threshold_f1(y_val, pv)
+                    eval_one_split_clf(sym, fold, "val", TASK, y_val, (pv >= t_best).astype(int), pv, len(va), name, t_best, f"t_f1={f1_best:.4f} {extra}", results_clf)
+                    eval_one_split_clf(sym, fold, "test", TASK, y_test, (pt >= t_best).astype(int), pt, len(te), name, t_best, f"t_f1={f1_best:.4f} {extra}", results_clf)
+                except Exception as exc:
+                    print(f"[WARN] {sym} fold={fold} model={name} skipped: {type(exc).__name__}: {exc}")
 
         fold += 1
         i += WF_STEP_DAYS
