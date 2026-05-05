@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-04-28T20:28:17.778409",
-  "version": "2.0",
-  "total_rules": 100,
+  "generated_at": "2026-05-04T22:26:14.446312",
+  "version": "2.2",
+  "total_rules": 150,
   "features_count": 56,
   "feature_index": {
     "open": 1,
@@ -120,38 +120,38 @@
     "yc_slope"
   ],
   "shap_top15": [
-    "high",
-    "sma_20",
-    "corr_mkt_60",
-    "macd_signal",
-    "rsi_14",
-    "close",
-    "atrp_14",
-    "open",
-    "mkt_mom_20",
-    "volume",
-    "bb_width_20",
-    "volatility_10",
-    "irx_level",
     "ema_26",
-    "mkt_mom_10"
+    "mkt_mom_10",
+    "macd_signal",
+    "mom_10",
+    "volatility_5",
+    "vix_z_60",
+    "volume",
+    "vix_x_mktret",
+    "oc_return",
+    "mom_20",
+    "high",
+    "volatility_10",
+    "tnx_level",
+    "close",
+    "irx_level"
   ],
   "shap_top15_indices": [
-    2,
-    12,
-    49,
-    28,
-    24,
-    4,
-    32,
-    1,
-    40,
-    5,
-    30,
-    11,
-    45,
     26,
-    39
+    39,
+    28,
+    22,
+    9,
+    54,
+    5,
+    55,
+    20,
+    23,
+    2,
+    11,
+    47,
+    4,
+    45
   ],
   "events": {
     "a1": "Сильный рост (Strong Bullish)",
@@ -175,1001 +175,1485 @@
     {
       "ante": [
         28,
-        12,
-        24,
-        49
-      ],
-      "cons": "a1",
-      "cond": "f28 > 0.50 AND f12 > 0.30 AND f24 BETWEEN 0.20 AND 1.20 AND f49 > 0.30",
-      "label": "MACD bullish crossover above SMA20, RSI in healthy zone, positive market correlation"
-    },
-    {
-      "ante": [
-        40,
-        39,
-        49,
-        30
-      ],
-      "cons": "a1",
-      "cond": "f40 > 0.40 AND f39 > 0.30 AND f49 > 0.20 AND f30 BETWEEN -0.50 AND 0.50",
-      "label": "Market momentum strong (10/20d), regime aligned, moderate volatility"
-    },
-    {
-      "ante": [
-        2,
-        12,
-        28,
-        32
-      ],
-      "cons": "a1",
-      "cond": "f2 > 0.50 AND f12 > 0.40 AND f28 > 0.30 AND f32 BETWEEN -0.20 AND 0.50",
-      "label": "New highs above SMA20 with bullish MACD and bounded ATR"
-    },
-    {
-      "ante": [
-        4,
-        12,
         26,
-        28
-      ],
-      "cons": "a1",
-      "cond": "f4 > 0.50 AND f12 > 0.30 AND f26 > 0.30 AND f28 > 0.30",
-      "label": "Close breaks SMA20+EMA26, MACD signal positive"
-    },
-    {
-      "ante": [
-        24,
-        28,
-        49
-      ],
-      "cons": "a2",
-      "cond": "f24 BETWEEN 0.0 AND 1.0 AND f28 > 0.10 AND f49 BETWEEN -0.20 AND 0.80",
-      "label": "RSI bullish but not overbought, mild MACD positive, normal correlation"
-    },
-    {
-      "ante": [
-        28,
-        40,
-        30
-      ],
-      "cons": "a2",
-      "cond": "f28 > 0.0 AND f40 > 0.10 AND f30 BETWEEN -0.30 AND 0.40",
-      "label": "Mild bullish MACD with positive market trend, BB normal"
-    },
-    {
-      "ante": [
-        12,
-        4,
-        32
-      ],
-      "cons": "a2",
-      "cond": "f12 > 0.10 AND f4 > 0.10 AND f32 BETWEEN -0.30 AND 0.40",
-      "label": "Price above 20d trend, ATR-percentage normal"
-    },
-    {
-      "ante": [
-        28,
-        32,
-        30,
-        49
-      ],
-      "cons": "a3",
-      "cond": "f28 < -0.40 AND f32 > 0.80 AND f30 > 0.60 AND f49 > 0.50",
-      "label": "MACD turning down, ATR spike, BB expansion, high beta to market"
-    },
-    {
-      "ante": [
-        40,
-        30,
-        11,
-        32
-      ],
-      "cons": "a3",
-      "cond": "f40 < -0.40 AND f30 > 0.50 AND f11 > 0.50 AND f32 > 0.50",
-      "label": "Market downtrend + volatility expansion across all proxies"
-    },
-    {
-      "ante": [
-        24,
-        28,
-        32
-      ],
-      "cons": "a3",
-      "cond": "f24 > 1.50 AND f28 < -0.20 AND f32 > 0.40",
-      "label": "RSI overbought + MACD turning down + ATR rising → reversal"
-    },
-    {
-      "ante": [
-        2,
-        4,
-        12,
-        28
-      ],
-      "cons": "a3",
-      "cond": "f2 < -0.50 AND f4 < -0.50 AND f12 < -0.30 AND f28 < -0.20",
-      "label": "Price collapse below 20d trend with bearish MACD"
-    },
-    {
-      "ante": [
-        45,
-        40,
-        49
-      ],
-      "cons": "a2",
-      "cond": "f45 BETWEEN -0.50 AND 0.50 AND f40 > 0.0 AND f49 BETWEEN -0.20 AND 0.80",
-      "label": "Rates stable, market mildly up, normal beta regime"
-    },
-    {
-      "ante": [
-        2,
-        11,
-        12,
-        24,
-        28
-      ],
-      "cons": "a1",
-      "cond": "f2 > -1.3 AND f11 BETWEEN 0.34 AND 0.94 AND f12 < -1.49 AND f24 > -1.69 AND f28 BETWEEN -1.31 AND -0.71"
-    },
-    {
-      "ante": [
-        2,
-        11,
-        28,
-        30,
-        40
-      ],
-      "cons": "a3",
-      "cond": "f2 > 0.16 AND f11 < -0.18 AND f28 > 1.11 AND f30 > 0.93 AND f40 < 0.71"
-    },
-    {
-      "ante": [
-        4,
-        28,
-        45,
-        49
-      ],
-      "cons": "a1",
-      "cond": "f4 > -1.47 AND f28 < -0.51 AND f45 > 0.37 AND f49 BETWEEN 0.53 AND 1.13"
-    },
-    {
-      "ante": [
-        12,
-        32,
-        39
-      ],
-      "cons": "a3",
-      "cond": "f12 BETWEEN -1.04 AND -0.44 AND f32 < 0.43 AND f39 BETWEEN -0.02 AND 0.58"
-    },
-    {
-      "ante": [
-        2,
-        28,
-        30
-      ],
-      "cons": "a2",
-      "cond": "f2 > 1.75 AND f28 < 1.32 AND f30 BETWEEN -1.10 AND -0.50"
-    },
-    {
-      "ante": [
-        4,
-        26,
-        28,
-        49
-      ],
-      "cons": "a3",
-      "cond": "f4 BETWEEN -1.14 AND -0.54 AND f26 BETWEEN 0.23 AND 0.83 AND f28 BETWEEN 0.19 AND 0.79 AND f49 > 0.82"
-    },
-    {
-      "ante": [
-        11,
-        24,
-        30,
-        32
-      ],
-      "cons": "a3",
-      "cond": "f11 < -1.01 AND f24 > 1.23 AND f30 > -0.98 AND f32 < 1.1"
-    },
-    {
-      "ante": [
-        5,
-        11,
-        12,
-        28
-      ],
-      "cons": "a2",
-      "cond": "f5 < -1.03 AND f11 BETWEEN -0.68 AND -0.08 AND f12 < -0.15 AND f28 BETWEEN -1.60 AND -1.00"
-    },
-    {
-      "ante": [
-        5,
-        11,
-        24,
-        32,
-        40
-      ],
-      "cons": "a3",
-      "cond": "f5 > -0.36 AND f11 > 1.79 AND f24 > 0.03 AND f32 > 0.92 AND f40 > -1.25"
-    },
-    {
-      "ante": [
-        5,
-        11,
-        12,
-        32,
-        39
-      ],
-      "cons": "a3",
-      "cond": "f5 BETWEEN 1.49 AND 2.09 AND f11 BETWEEN -1.19 AND -0.59 AND f12 > 1.3 AND f32 > 0.65 AND f39 BETWEEN 0.35 AND 0.95"
-    },
-    {
-      "ante": [
-        4,
-        12,
-        30,
-        45
-      ],
-      "cons": "a2",
-      "cond": "f4 < -0.23 AND f12 BETWEEN -2.09 AND -1.49 AND f30 < 1.35 AND f45 > 1.7"
-    },
-    {
-      "ante": [
-        12,
-        24,
-        30,
         39,
-        45
-      ],
-      "cons": "a3",
-      "cond": "f12 > 0.39 AND f24 > -0.45 AND f30 BETWEEN -0.16 AND 0.44 AND f39 BETWEEN 1.21 AND 1.81 AND f45 > -0.63"
-    },
-    {
-      "ante": [
-        4,
-        39,
-        45
-      ],
-      "cons": "a2",
-      "cond": "f4 > -0.94 AND f39 > 1.36 AND f45 < -1.49"
-    },
-    {
-      "ante": [
-        39,
-        40,
-        45
-      ],
-      "cons": "a1",
-      "cond": "f39 < -1.34 AND f40 > 1.61 AND f45 BETWEEN -1.15 AND -0.55"
-    },
-    {
-      "ante": [
-        11,
-        28,
-        40,
-        45
-      ],
-      "cons": "a3",
-      "cond": "f11 < -1.08 AND f28 BETWEEN -0.66 AND -0.06 AND f40 < 0.54 AND f45 < 1.44"
-    },
-    {
-      "ante": [
-        12,
-        28,
-        39
-      ],
-      "cons": "a2",
-      "cond": "f12 BETWEEN -2.02 AND -1.42 AND f28 > -0.97 AND f39 BETWEEN -2.07 AND -1.47"
-    },
-    {
-      "ante": [
-        2,
-        4,
-        12,
-        28,
-        39
-      ],
-      "cons": "a1",
-      "cond": "f2 < 0.05 AND f4 > 0.61 AND f12 BETWEEN -0.16 AND 0.44 AND f28 BETWEEN 1.27 AND 1.87 AND f39 > 0.27"
-    },
-    {
-      "ante": [
-        12,
-        28,
-        32,
-        45
-      ],
-      "cons": "a1",
-      "cond": "f12 < 0.57 AND f28 < -0.28 AND f32 > 1.31 AND f45 BETWEEN 0.32 AND 0.92"
-    },
-    {
-      "ante": [
-        2,
-        11,
-        32
-      ],
-      "cons": "a2",
-      "cond": "f2 > 1.08 AND f11 > -0.9 AND f32 > 0.13"
-    },
-    {
-      "ante": [
-        1,
-        24,
-        28,
-        49
-      ],
-      "cons": "a1",
-      "cond": "f1 BETWEEN -0.50 AND 0.10 AND f24 BETWEEN -1.75 AND -1.15 AND f28 > 1.8 AND f49 > 1.69"
-    },
-    {
-      "ante": [
-        1,
-        26,
-        32
-      ],
-      "cons": "a1",
-      "cond": "f1 > 1.31 AND f26 > -1.21 AND f32 < 1.75"
-    },
-    {
-      "ante": [
-        11,
-        24,
-        32,
-        45
-      ],
-      "cons": "a3",
-      "cond": "f11 < 0.58 AND f24 < -1.24 AND f32 > -1.02 AND f45 BETWEEN -0.01 AND 0.59"
-    },
-    {
-      "ante": [
-        2,
-        4,
         11
       ],
       "cons": "a1",
-      "cond": "f2 BETWEEN 0.00 AND 0.60 AND f4 BETWEEN 1.21 AND 1.81 AND f11 BETWEEN -1.53 AND -0.93"
+      "cond": "f28 > 0.50 AND f26 > 0.30 AND f39 > 0.30 AND f11 BETWEEN -0.50 AND 0.50",
+      "label": "MACD bullish + price above EMA26 + market mom + moderate vol"
     },
     {
       "ante": [
-        12,
+        39,
+        22,
+        23,
+        54
+      ],
+      "cons": "a1",
+      "cond": "f39 > 0.30 AND f22 > 0.30 AND f23 > 0.30 AND f54 < 0",
+      "label": "Multi-horizon momentum aligned, low VIX z-score"
+    },
+    {
+      "ante": [
+        2,
+        4,
         26,
-        49
+        28
       ],
-      "cons": "a3",
-      "cond": "f12 > -1.56 AND f26 BETWEEN -0.65 AND -0.05 AND f49 BETWEEN -1.21 AND -0.61"
+      "cons": "a1",
+      "cond": "f2 > 0.50 AND f4 > 0.40 AND f26 > 0.30 AND f28 > 0.20",
+      "label": "New highs above EMA26 with bullish MACD"
     },
     {
       "ante": [
-        5,
-        12,
-        32
-      ],
-      "cons": "a3",
-      "cond": "f5 BETWEEN 0.00 AND 0.60 AND f12 < -0.66 AND f32 BETWEEN -1.36 AND -0.76"
-    },
-    {
-      "ante": [
-        24,
+        20,
+        22,
         28,
-        32,
-        49
+        9
       ],
-      "cons": "a3",
-      "cond": "f24 < 0.52 AND f28 > -0.66 AND f32 BETWEEN -2.07 AND -1.47 AND f49 > 1.79"
+      "cons": "a1",
+      "cond": "f20 > 0.30 AND f22 > 0.30 AND f28 > 0.20 AND f9 BETWEEN -0.30 AND 0.30",
+      "label": "Strong open-close + 10d momentum + bullish MACD + low vol"
     },
     {
       "ante": [
         28,
         39,
-        40
+        22
       ],
       "cons": "a2",
-      "cond": "f28 < -1.32 AND f39 > 1.37 AND f40 > -0.47"
+      "cond": "f28 > 0.10 AND f39 > 0.10 AND f22 > 0.10",
+      "label": "Mild bullish MACD + market mom + own mom"
     },
     {
       "ante": [
-        11,
-        24,
         26,
-        40
+        4,
+        11
+      ],
+      "cons": "a2",
+      "cond": "f26 > 0.10 AND f4 > 0.10 AND f11 BETWEEN -0.30 AND 0.30",
+      "label": "Price above EMA26 in normal vol regime"
+    },
+    {
+      "ante": [
+        39,
+        55,
+        54
+      ],
+      "cons": "a2",
+      "cond": "f39 > 0.10 AND f55 BETWEEN -0.30 AND 0.30 AND f54 BETWEEN -0.50 AND 0.50",
+      "label": "Market mom up, neutral VIX-mkt-ret, neutral VIX z"
+    },
+    {
+      "ante": [
+        54,
+        55,
+        9,
+        11
       ],
       "cons": "a3",
-      "cond": "f11 BETWEEN 1.44 AND 2.04 AND f24 BETWEEN -0.20 AND 0.40 AND f26 < 1.14 AND f40 > 1.55"
+      "cond": "f54 > 1.00 AND f55 > 0.50 AND f9 > 0.60 AND f11 > 0.50",
+      "label": "VIX spike + risk-off interaction + vol expansion"
     },
     {
       "ante": [
-        12,
-        24,
+        39,
+        22,
+        28
+      ],
+      "cons": "a3",
+      "cond": "f39 < -0.30 AND f22 < -0.30 AND f28 < -0.20",
+      "label": "Negative momentum 10d (mkt+asset) with bearish MACD"
+    },
+    {
+      "ante": [
+        2,
+        4,
         26
       ],
       "cons": "a3",
-      "cond": "f12 < 0.19 AND f24 > -0.79 AND f26 > 0.78"
+      "cond": "f2 < -0.50 AND f4 < -0.50 AND f26 < -0.30",
+      "label": "Price collapse below EMA26"
     },
     {
       "ante": [
-        1,
-        24,
-        26,
-        30,
-        40
-      ],
-      "cons": "a2",
-      "cond": "f1 > 1.46 AND f24 < -1.47 AND f26 > 1.19 AND f30 > -1.79 AND f40 < 0.49"
-    },
-    {
-      "ante": [
-        1,
+        28,
+        9,
         11,
-        40
+        55
       ],
       "cons": "a3",
-      "cond": "f1 > -0.26 AND f11 BETWEEN -1.70 AND -1.10 AND f40 BETWEEN 1.15 AND 1.75"
+      "cond": "f28 < -0.30 AND f9 > 0.50 AND f11 > 0.50 AND f55 > 0.30",
+      "label": "MACD turning down with rising vol_5/10 and risk-off"
+    },
+    {
+      "ante": [
+        47,
+        45,
+        39
+      ],
+      "cons": "a3",
+      "cond": "f47 > 1.00 AND f45 > 0.50 AND f39 < 0",
+      "label": "Rising 10Y + 3M rates with negative market momentum"
+    },
+    {
+      "ante": [
+        20,
+        28,
+        39,
+        45,
+        47
+      ],
+      "cons": "a3",
+      "cond": "f20 BETWEEN 0.57 AND 1.17 AND f28 < -1.49 AND f39 > -1.69 AND f45 BETWEEN -1.31 AND -0.71 AND f47 BETWEEN 0.07 AND 0.67"
+    },
+    {
+      "ante": [
+        5,
+        11,
+        20
+      ],
+      "cons": "a1",
+      "cond": "f5 < -0.18 AND f11 > 1.11 AND f20 > 0.93"
+    },
+    {
+      "ante": [
+        4,
+        23,
+        39,
+        45,
+        54
+      ],
+      "cons": "a1",
+      "cond": "f4 < -0.43 AND f23 BETWEEN 0.95 AND 1.55 AND f39 > -0.85 AND f45 BETWEEN 0.53 AND 1.13 AND f54 < -1.35"
+    },
+    {
+      "ante": [
+        4,
+        9,
+        23
+      ],
+      "cons": "a1",
+      "cond": "f4 > -1.64 AND f9 > 0.98 AND f23 > 1.28"
+    },
+    {
+      "ante": [
+        2,
+        22,
+        47,
+        54
+      ],
+      "cons": "a3",
+      "cond": "f2 BETWEEN -1.14 AND -0.54 AND f22 BETWEEN 0.23 AND 0.83 AND f47 BETWEEN 0.19 AND 0.79 AND f54 > 0.82"
+    },
+    {
+      "ante": [
+        4,
+        20,
+        26,
+        45
+      ],
+      "cons": "a1",
+      "cond": "f4 < 1.16 AND f20 > -0.36 AND f26 BETWEEN -1.34 AND -0.74 AND f45 < 1.35"
+    },
+    {
+      "ante": [
+        2,
+        5,
+        55
+      ],
+      "cons": "a1",
+      "cond": "f2 > -0.85 AND f5 BETWEEN 0.58 AND 1.18 AND f55 BETWEEN -1.15 AND -0.55"
+    },
+    {
+      "ante": [
+        5,
+        22,
+        28,
+        54
+      ],
+      "cons": "a3",
+      "cond": "f5 > -0.02 AND f22 > 1.3 AND f28 BETWEEN 0.16 AND 0.76 AND f54 > -0.28"
+    },
+    {
+      "ante": [
+        23,
+        26,
+        47,
+        55
+      ],
+      "cons": "a3",
+      "cond": "f23 BETWEEN 0.49 AND 1.09 AND f26 < 1.39 AND f47 < 0.97 AND f55 < -1.4"
+    },
+    {
+      "ante": [
+        2,
+        9,
+        23
+      ],
+      "cons": "a1",
+      "cond": "f2 < 1.33 AND f9 BETWEEN 0.93 AND 1.53 AND f23 > 0.39"
+    },
+    {
+      "ante": [
+        20,
+        26,
+        45,
+        47
+      ],
+      "cons": "a3",
+      "cond": "f20 > -0.63 AND f26 < -1.4 AND f45 < 1.36 AND f47 > -0.94"
+    },
+    {
+      "ante": [
+        11,
+        39,
+        45,
+        55
+      ],
+      "cons": "a3",
+      "cond": "f11 > 0.96 AND f39 BETWEEN 0.28 AND 0.88 AND f45 BETWEEN -1.51 AND -0.91 AND f55 < 1.34"
+    },
+    {
+      "ante": [
+        4,
+        11,
+        47
+      ],
+      "cons": "a1",
+      "cond": "f4 < 0.77 AND f11 BETWEEN 1.48 AND 2.08 AND f47 BETWEEN -0.76 AND -0.16"
+    },
+    {
+      "ante": [
+        2,
+        5,
+        26,
+        54
+      ],
+      "cons": "a3",
+      "cond": "f2 > -0.97 AND f5 BETWEEN -2.07 AND -1.47 AND f26 > 0.47 AND f54 > -1.56"
+    },
+    {
+      "ante": [
+        11,
+        20,
+        22,
+        55
+      ],
+      "cons": "a3",
+      "cond": "f11 BETWEEN -1.62 AND -1.02 AND f20 > 0.27 AND f22 < 1.02 AND f55 > -1.11"
+    },
+    {
+      "ante": [
+        2,
+        4,
+        20,
+        26,
+        47
+      ],
+      "cons": "a3",
+      "cond": "f2 > 1.74 AND f4 BETWEEN -1.88 AND -1.28 AND f20 > -0.58 AND f26 > -0.9 AND f47 > 0.13"
+    },
+    {
+      "ante": [
+        2,
+        5,
+        9,
+        23
+      ],
+      "cons": "a1",
+      "cond": "f2 BETWEEN -1.92 AND -1.32 AND f5 > 1.21 AND f9 > 1.53 AND f23 < -1.2"
+    },
+    {
+      "ante": [
+        5,
+        9,
+        20,
+        26
+      ],
+      "cons": "a2",
+      "cond": "f5 < -0.85 AND f9 BETWEEN -1.07 AND -0.47 AND f20 BETWEEN 1.35 AND 1.95 AND f26 < 0.58"
+    },
+    {
+      "ante": [
+        2,
+        5,
+        47
+      ],
+      "cons": "a3",
+      "cond": "f2 < -1.58 AND f5 BETWEEN -1.89 AND -1.29 AND f47 BETWEEN -0.38 AND 0.22"
+    },
+    {
+      "ante": [
+        23,
+        39,
+        45
+      ],
+      "cons": "a1",
+      "cond": "f23 > 0.63 AND f39 BETWEEN -0.65 AND -0.05 AND f45 BETWEEN -1.21 AND -0.61"
+    },
+    {
+      "ante": [
+        2,
+        5,
+        23
+      ],
+      "cons": "a3",
+      "cond": "f2 < 0.08 AND f5 BETWEEN -1.36 AND -0.76 AND f23 < -0.67"
+    },
+    {
+      "ante": [
+        39,
+        45,
+        54,
+        55
+      ],
+      "cons": "a1",
+      "cond": "f39 BETWEEN -0.45 AND 0.15 AND f45 > 1.79 AND f54 BETWEEN -0.16 AND 0.44 AND f55 < -0.85"
+    },
+    {
+      "ante": [
+        9,
+        28,
+        54
+      ],
+      "cons": "a2",
+      "cond": "f9 BETWEEN 0.90 AND 1.50 AND f28 BETWEEN -1.01 AND -0.41 AND f54 BETWEEN -0.20 AND 0.40"
+    },
+    {
+      "ante": [
+        4,
+        9,
+        39,
+        54
+      ],
+      "cons": "a3",
+      "cond": "f4 < 0.19 AND f9 > -0.79 AND f39 > 0.78 AND f54 < 0.67"
+    },
+    {
+      "ante": [
+        11,
+        22,
+        54,
+        55
+      ],
+      "cons": "a1",
+      "cond": "f11 > -1.79 AND f22 < 0.49 AND f54 < -1.22 AND f55 < 0.19"
+    },
+    {
+      "ante": [
+        5,
+        23,
+        26,
+        54
+      ],
+      "cons": "a3",
+      "cond": "f5 < 0.19 AND f23 < -1.34 AND f26 > -0.49 AND f54 > 1.44"
     },
     {
       "ante": [
         4,
         5,
-        26
+        20,
+        23,
+        47
       ],
       "cons": "a3",
-      "cond": "f4 > -1.27 AND f5 < -1.65 AND f26 > 1.44"
+      "cond": "f4 > -1.24 AND f5 > 1.31 AND f20 > 1.37 AND f23 < -1.15 AND f47 < 1.02"
     },
     {
       "ante": [
-        26,
+        9,
+        22,
         28,
-        30,
-        39
+        39,
+        47
+      ],
+      "cons": "a2",
+      "cond": "f9 < 1.34 AND f22 < -1.0 AND f28 > -0.54 AND f39 BETWEEN -1.30 AND -0.70 AND f47 < -1.1"
+    },
+    {
+      "ante": [
+        2,
+        9,
+        47,
+        54
+      ],
+      "cons": "a3",
+      "cond": "f2 BETWEEN -0.66 AND -0.06 AND f9 > -0.61 AND f47 < -1.38 AND f54 < -1.16"
+    },
+    {
+      "ante": [
+        5,
+        11,
+        55
+      ],
+      "cons": "a3",
+      "cond": "f5 > 1.74 AND f11 BETWEEN -0.71 AND -0.11 AND f55 > -1.12"
+    },
+    {
+      "ante": [
+        5,
+        11,
+        20,
+        39,
+        54
+      ],
+      "cons": "a3",
+      "cond": "f5 > -0.67 AND f11 < 0.79 AND f20 BETWEEN -0.27 AND 0.33 AND f39 < -0.33 AND f54 BETWEEN 0.41 AND 1.01"
+    },
+    {
+      "ante": [
+        20,
+        22,
+        28
+      ],
+      "cons": "a3",
+      "cond": "f20 < 1.2 AND f22 < -0.77 AND f28 BETWEEN 0.73 AND 1.33"
+    },
+    {
+      "ante": [
+        2,
+        20,
+        22,
+        23,
+        28
+      ],
+      "cons": "a3",
+      "cond": "f2 BETWEEN -1.79 AND -1.19 AND f20 BETWEEN 0.29 AND 0.89 AND f22 > -0.59 AND f23 > 0.62 AND f28 > 1.1"
+    },
+    {
+      "ante": [
+        20,
+        22,
+        45
+      ],
+      "cons": "a2",
+      "cond": "f20 BETWEEN 1.09 AND 1.69 AND f22 BETWEEN -1.40 AND -0.80 AND f45 < -0.42"
+    },
+    {
+      "ante": [
+        5,
+        45,
+        47
       ],
       "cons": "a1",
-      "cond": "f26 BETWEEN -0.83 AND -0.23 AND f28 < 1.38 AND f30 BETWEEN 1.41 AND 2.01 AND f39 > -1.24"
+      "cond": "f5 BETWEEN -1.47 AND -0.87 AND f45 > 0.06 AND f47 > 0.21"
+    },
+    {
+      "ante": [
+        4,
+        9,
+        20,
+        45
+      ],
+      "cons": "a3",
+      "cond": "f4 BETWEEN 0.83 AND 1.43 AND f9 BETWEEN -0.56 AND 0.04 AND f20 > -0.19 AND f45 < 0.88"
+    },
+    {
+      "ante": [
+        4,
+        20,
+        23,
+        45
+      ],
+      "cons": "a2",
+      "cond": "f4 < 0.46 AND f20 BETWEEN -0.52 AND 0.08 AND f23 < -0.77 AND f45 BETWEEN -0.89 AND -0.29"
+    },
+    {
+      "ante": [
+        22,
+        28,
+        47
+      ],
+      "cons": "a3",
+      "cond": "f22 < -1.03 AND f28 BETWEEN -0.63 AND -0.03 AND f47 > -0.12"
+    },
+    {
+      "ante": [
+        5,
+        23,
+        47
+      ],
+      "cons": "a3",
+      "cond": "f5 BETWEEN -2.03 AND -1.43 AND f23 > -0.43 AND f47 < 1.59"
+    },
+    {
+      "ante": [
+        4,
+        5,
+        11,
+        20
+      ],
+      "cons": "a3",
+      "cond": "f4 BETWEEN -0.13 AND 0.47 AND f5 < 1.43 AND f11 < -1.01 AND f20 < -0.05"
+    },
+    {
+      "ante": [
+        5,
+        11,
+        28,
+        47
+      ],
+      "cons": "a2",
+      "cond": "f5 BETWEEN 1.21 AND 1.81 AND f11 < 0.12 AND f28 BETWEEN 0.03 AND 0.63 AND f47 BETWEEN -2.00 AND -1.40"
+    },
+    {
+      "ante": [
+        20,
+        26,
+        54,
+        55
+      ],
+      "cons": "a2",
+      "cond": "f20 < -1.04 AND f26 < -0.58 AND f54 < -0.8 AND f55 > -0.89"
+    },
+    {
+      "ante": [
+        9,
+        11,
+        22,
+        39
+      ],
+      "cons": "a3",
+      "cond": "f9 > -1.66 AND f11 > 1.62 AND f22 BETWEEN 0.92 AND 1.52 AND f39 > -1.25"
+    },
+    {
+      "ante": [
+        11,
+        22,
+        23,
+        55
+      ],
+      "cons": "a2",
+      "cond": "f11 > 0.96 AND f22 BETWEEN 0.08 AND 0.68 AND f23 > 0.79 AND f55 > 1.67"
+    },
+    {
+      "ante": [
+        9,
+        45,
+        47,
+        55
+      ],
+      "cons": "a1",
+      "cond": "f9 BETWEEN -1.83 AND -1.23 AND f45 > 1.19 AND f47 < -1.43 AND f55 BETWEEN 0.96 AND 1.56"
+    },
+    {
+      "ante": [
+        23,
+        26,
+        47
+      ],
+      "cons": "a2",
+      "cond": "f23 BETWEEN -0.18 AND 0.42 AND f26 BETWEEN -0.77 AND -0.17 AND f47 > 0.53"
+    },
+    {
+      "ante": [
+        2,
+        5,
+        39,
+        54
+      ],
+      "cons": "a2",
+      "cond": "f2 < 0.75 AND f5 BETWEEN -1.47 AND -0.87 AND f39 < 1.68 AND f54 BETWEEN 0.12 AND 0.72"
+    },
+    {
+      "ante": [
+        2,
+        9,
+        39,
+        55
+      ],
+      "cons": "a2",
+      "cond": "f2 < -0.92 AND f9 BETWEEN -0.05 AND 0.55 AND f39 > -0.44 AND f55 < -0.02"
+    },
+    {
+      "ante": [
+        9,
+        45,
+        55
+      ],
+      "cons": "a3",
+      "cond": "f9 < 0.72 AND f45 BETWEEN -0.10 AND 0.50 AND f55 > 1.61"
+    },
+    {
+      "ante": [
+        20,
+        47,
+        55
+      ],
+      "cons": "a1",
+      "cond": "f20 BETWEEN 0.39 AND 0.99 AND f47 < 0.76 AND f55 > 1.05"
+    },
+    {
+      "ante": [
+        2,
+        5,
+        11,
+        28
+      ],
+      "cons": "a2",
+      "cond": "f2 < 0.19 AND f5 BETWEEN -0.57 AND 0.03 AND f11 < 0.18 AND f28 < 0.73"
+    },
+    {
+      "ante": [
+        4,
+        11,
+        39,
+        54
+      ],
+      "cons": "a3",
+      "cond": "f4 BETWEEN 1.32 AND 1.92 AND f11 > -1.13 AND f39 < 0.86 AND f54 BETWEEN 0.51 AND 1.11"
+    },
+    {
+      "ante": [
+        4,
+        9,
+        22,
+        54
+      ],
+      "cons": "a1",
+      "cond": "f4 BETWEEN -1.01 AND -0.41 AND f9 < 0.12 AND f22 > -1.64 AND f54 BETWEEN -0.11 AND 0.49"
     },
     {
       "ante": [
         39,
-        45,
-        49
+        47,
+        55
+      ],
+      "cons": "a1",
+      "cond": "f39 < 0.27 AND f47 < -0.08 AND f55 > -1.14"
+    },
+    {
+      "ante": [
+        4,
+        5,
+        39,
+        55
       ],
       "cons": "a2",
-      "cond": "f39 BETWEEN -2.01 AND -1.41 AND f45 < 1.53 AND f49 BETWEEN 0.79 AND 1.39"
+      "cond": "f4 BETWEEN -1.83 AND -1.23 AND f5 > 0.67 AND f39 BETWEEN -1.56 AND -0.96 AND f55 > 1.62"
     },
     {
       "ante": [
-        24,
-        45,
-        49
+        2,
+        4,
+        45
       ],
       "cons": "a3",
-      "cond": "f24 > -1.41 AND f45 > 1.29 AND f49 < -1.08"
+      "cond": "f2 < -0.43 AND f4 BETWEEN -1.03 AND -0.43 AND f45 < 1.76"
     },
     {
       "ante": [
-        24,
+        11,
+        22,
+        23,
+        39
+      ],
+      "cons": "a3",
+      "cond": "f11 BETWEEN -1.34 AND -0.74 AND f22 > -1.51 AND f23 > -1.17 AND f39 < -1.24"
+    },
+    {
+      "ante": [
+        9,
+        22,
+        26,
+        55
+      ],
+      "cons": "a2",
+      "cond": "f9 BETWEEN 0.45 AND 1.05 AND f22 > 1.29 AND f26 < 0.67 AND f55 BETWEEN 0.74 AND 1.34"
+    },
+    {
+      "ante": [
+        5,
+        22,
+        39,
+        45
+      ],
+      "cons": "a3",
+      "cond": "f5 > -0.99 AND f22 > 1.47 AND f39 > -1.54 AND f45 BETWEEN 0.75 AND 1.35"
+    },
+    {
+      "ante": [
+        9,
+        39,
+        45,
+        47,
+        55
+      ],
+      "cons": "a3",
+      "cond": "f9 < -0.71 AND f39 BETWEEN 1.29 AND 1.89 AND f45 < 0.14 AND f47 > -1.51 AND f55 BETWEEN 1.10 AND 1.70"
+    },
+    {
+      "ante": [
+        2,
+        22,
+        26,
+        39
+      ],
+      "cons": "a3",
+      "cond": "f2 > 0.31 AND f22 BETWEEN 1.50 AND 2.10 AND f26 BETWEEN 0.86 AND 1.46 AND f39 > -1.66"
+    },
+    {
+      "ante": [
+        11,
+        23,
+        28,
+        55
+      ],
+      "cons": "a3",
+      "cond": "f11 > 1.13 AND f23 < -0.11 AND f28 BETWEEN -0.90 AND -0.30 AND f55 > -1.42"
+    },
+    {
+      "ante": [
+        2,
+        20,
+        23,
+        45
+      ],
+      "cons": "a1",
+      "cond": "f2 < -0.16 AND f20 > -0.89 AND f23 < 1.69 AND f45 > 1.31"
+    },
+    {
+      "ante": [
+        5,
+        20,
+        22,
+        26,
+        55
+      ],
+      "cons": "a2",
+      "cond": "f5 < 0.44 AND f20 > 0.45 AND f22 BETWEEN -1.37 AND -0.77 AND f26 < -1.33 AND f55 BETWEEN -0.52 AND 0.08"
+    },
+    {
+      "ante": [
+        23,
+        26,
+        28,
+        54
+      ],
+      "cons": "a3",
+      "cond": "f23 > -0.33 AND f26 > 1.77 AND f28 > -0.14 AND f54 > 0.53"
+    },
+    {
+      "ante": [
+        9,
+        11,
+        20,
+        45
+      ],
+      "cons": "a2",
+      "cond": "f9 < 1.21 AND f11 BETWEEN -1.22 AND -0.62 AND f20 > -1.28 AND f45 BETWEEN 1.22 AND 1.82"
+    },
+    {
+      "ante": [
+        4,
+        5,
+        9,
+        39,
+        54
+      ],
+      "cons": "a3",
+      "cond": "f4 > -0.84 AND f5 < -0.78 AND f9 BETWEEN 0.91 AND 1.51 AND f39 < 1.8 AND f54 < 1.31"
+    },
+    {
+      "ante": [
+        4,
+        23,
+        54,
+        55
+      ],
+      "cons": "a1",
+      "cond": "f4 > 1.73 AND f23 > 0.26 AND f54 < 1.28 AND f55 BETWEEN -1.94 AND -1.34"
+    },
+    {
+      "ante": [
+        2,
+        4,
+        5,
+        47
+      ],
+      "cons": "a3",
+      "cond": "f2 < 1.73 AND f4 > 1.67 AND f5 BETWEEN -0.29 AND 0.31 AND f47 > -0.6"
+    },
+    {
+      "ante": [
+        20,
+        26,
+        28,
+        47
+      ],
+      "cons": "a1",
+      "cond": "f20 < -1.53 AND f26 BETWEEN -0.88 AND -0.28 AND f28 > -0.37 AND f47 BETWEEN 0.97 AND 1.57"
+    },
+    {
+      "ante": [
+        2,
         26,
         28,
         45
       ],
       "cons": "a1",
-      "cond": "f24 > -1.71 AND f26 < -0.37 AND f28 < 1.31 AND f45 BETWEEN -0.84 AND -0.24"
-    },
-    {
-      "ante": [
-        4,
-        26,
-        30,
-        40
-      ],
-      "cons": "a1",
-      "cond": "f4 < -1.38 AND f26 < -1.16 AND f30 BETWEEN -1.96 AND -1.36 AND f40 BETWEEN -0.54 AND 0.06"
+      "cond": "f2 < 0.47 AND f26 BETWEEN 1.49 AND 2.09 AND f28 > -1.47 AND f45 BETWEEN 0.64 AND 1.24"
     },
     {
       "ante": [
         5,
-        12,
-        32,
-        40
-      ],
-      "cons": "a2",
-      "cond": "f5 > 1.44 AND f12 BETWEEN -1.18 AND -0.58 AND f32 BETWEEN -0.53 AND 0.07 AND f40 BETWEEN 1.23 AND 1.83"
-    },
-    {
-      "ante": [
         11,
-        26,
-        28,
-        30,
-        39
-      ],
-      "cons": "a2",
-      "cond": "f11 BETWEEN -0.55 AND 0.05 AND f26 BETWEEN 1.21 AND 1.81 AND f28 > -0.67 AND f30 < 0.79 AND f39 BETWEEN -0.27 AND 0.33"
-    },
-    {
-      "ante": [
-        4,
-        11,
-        24,
-        32
-      ],
-      "cons": "a3",
-      "cond": "f4 < -1.34 AND f11 < 0.59 AND f24 > 0.64 AND f32 < 0.42"
-    },
-    {
-      "ante": [
-        2,
-        24,
-        26,
-        40
-      ],
-      "cons": "a2",
-      "cond": "f2 BETWEEN -1.34 AND -0.74 AND f24 < 0.38 AND f26 < -0.13 AND f40 BETWEEN 0.33 AND 0.93"
-    },
-    {
-      "ante": [
-        11,
-        39,
-        45,
-        49
-      ],
-      "cons": "a3",
-      "cond": "f11 BETWEEN -1.79 AND -1.19 AND f39 BETWEEN 0.29 AND 0.89 AND f45 > -0.59 AND f49 > 0.62"
-    },
-    {
-      "ante": [
-        2,
-        26,
-        49
+        26
       ],
       "cons": "a1",
-      "cond": "f2 BETWEEN 1.44 AND 2.04 AND f26 > 1.26 AND f49 BETWEEN -0.46 AND 0.14"
+      "cond": "f5 < -0.74 AND f11 > -0.25 AND f26 BETWEEN -0.19 AND 0.41"
     },
     {
       "ante": [
-        1,
-        11,
-        26,
+        5,
+        23,
         28,
-        32
-      ],
-      "cons": "a2",
-      "cond": "f1 BETWEEN -1.22 AND -0.62 AND f11 > 0.68 AND f26 > 1.0 AND f28 BETWEEN -1.47 AND -0.87 AND f32 > 0.06"
-    },
-    {
-      "ante": [
-        1,
-        12,
-        26,
-        28,
-        49
-      ],
-      "cons": "a2",
-      "cond": "f1 BETWEEN 0.30 AND 0.90 AND f12 < 0.34 AND f26 BETWEEN 0.11 AND 0.71 AND f28 < 1.41 AND f49 BETWEEN 0.89 AND 1.49"
-    },
-    {
-      "ante": [
-        1,
-        11,
         39,
-        49
-      ],
-      "cons": "a2",
-      "cond": "f1 > -0.87 AND f11 < 1.22 AND f39 BETWEEN 0.66 AND 1.26 AND f49 > -0.06"
-    },
-    {
-      "ante": [
-        1,
-        11,
-        12,
-        24
-      ],
-      "cons": "a1",
-      "cond": "f1 < -0.82 AND f11 > 1.41 AND f12 > -1.3 AND f24 > -0.42"
-    },
-    {
-      "ante": [
-        4,
-        12,
-        28,
-        32,
         45
       ],
       "cons": "a3",
-      "cond": "f4 > -0.12 AND f12 < -1.06 AND f28 BETWEEN -0.70 AND -0.10 AND f32 > 1.61 AND f45 BETWEEN 0.98 AND 1.58"
+      "cond": "f5 < 0.66 AND f23 > 1.49 AND f28 BETWEEN -1.26 AND -0.66 AND f39 < -0.89 AND f45 < 0.6"
     },
     {
       "ante": [
-        1,
-        2,
-        4,
-        24
-      ],
-      "cons": "a2",
-      "cond": "f1 < 1.27 AND f2 BETWEEN -0.16 AND 0.44 AND f4 BETWEEN -0.13 AND 0.47 AND f24 < 1.43"
-    },
-    {
-      "ante": [
-        1,
-        24,
-        32
-      ],
-      "cons": "a1",
-      "cond": "f1 BETWEEN -0.70 AND -0.10 AND f24 < 0.64 AND f32 < 0.81"
-    },
-    {
-      "ante": [
-        2,
-        5,
-        40
-      ],
-      "cons": "a2",
-      "cond": "f2 BETWEEN 0.03 AND 0.63 AND f5 BETWEEN -2.00 AND -1.40 AND f40 < -0.26"
-    },
-    {
-      "ante": [
-        2,
-        24,
-        32
-      ],
-      "cons": "a2",
-      "cond": "f2 < -1.04 AND f24 < -0.58 AND f32 < -0.8"
-    },
-    {
-      "ante": [
-        1,
-        2,
-        12,
-        26
+        28,
+        39,
+        54,
+        55
       ],
       "cons": "a3",
-      "cond": "f1 < 0.14 AND f2 > -0.99 AND f12 BETWEEN 0.71 AND 1.31 AND f26 > -1.66"
+      "cond": "f28 < -0.72 AND f39 < 0.69 AND f54 > 1.24 AND f55 < 1.8"
+    },
+    {
+      "ante": [
+        4,
+        22,
+        47
+      ],
+      "cons": "a2",
+      "cond": "f4 BETWEEN -2.02 AND -1.42 AND f22 > -0.38 AND f47 BETWEEN -0.06 AND 0.54"
+    },
+    {
+      "ante": [
+        9,
+        11,
+        23,
+        45,
+        55
+      ],
+      "cons": "a1",
+      "cond": "f9 < 0.39 AND f11 > -1.01 AND f23 BETWEEN 0.14 AND 0.74 AND f45 BETWEEN 0.62 AND 1.22 AND f55 > 0.65"
     },
     {
       "ante": [
         2,
+        4,
+        20,
+        26,
+        28
+      ],
+      "cons": "a2",
+      "cond": "f2 > 0.84 AND f4 < 1.47 AND f20 > 0.89 AND f26 BETWEEN -1.38 AND -0.78 AND f28 < 1.36"
+    },
+    {
+      "ante": [
+        2,
+        20,
+        28,
+        54
+      ],
+      "cons": "a3",
+      "cond": "f2 > 1.33 AND f20 > -0.11 AND f28 > -1.29 AND f54 BETWEEN 1.00 AND 1.60"
+    },
+    {
+      "ante": [
+        4,
+        20,
+        39,
+        47,
+        54
+      ],
+      "cons": "a2",
+      "cond": "f4 BETWEEN -2.05 AND -1.45 AND f20 < -1.36 AND f39 BETWEEN 0.32 AND 0.92 AND f47 < -0.86 AND f54 < 1.16"
+    },
+    {
+      "ante": [
+        23,
+        26,
+        55
+      ],
+      "cons": "a3",
+      "cond": "f23 BETWEEN -0.92 AND -0.32 AND f26 > -1.0 AND f55 < 0.49"
+    },
+    {
+      "ante": [
+        5,
+        22,
+        26,
+        39,
+        45
+      ],
+      "cons": "a2",
+      "cond": "f5 > -1.38 AND f22 > 1.39 AND f26 < -0.4 AND f39 BETWEEN 0.31 AND 0.91 AND f45 BETWEEN 0.41 AND 1.01"
+    },
+    {
+      "ante": [
+        11,
+        20,
         26,
         28
       ],
       "cons": "a3",
-      "cond": "f2 > -1.25 AND f26 > -0.1 AND f28 > 0.23"
+      "cond": "f11 < -0.33 AND f20 < -1.68 AND f26 < -1.02 AND f28 < 1.62"
     },
     {
       "ante": [
-        4,
-        11,
-        24,
+        2,
+        20,
+        54
+      ],
+      "cons": "a2",
+      "cond": "f2 < -1.58 AND f20 > -1.12 AND f54 < 1.62"
+    },
+    {
+      "ante": [
+        2,
+        23,
         45
       ],
       "cons": "a1",
-      "cond": "f4 BETWEEN 0.08 AND 0.68 AND f11 > 0.79 AND f24 > 1.67 AND f45 < 0.28"
+      "cond": "f2 < -1.62 AND f23 > -0.92 AND f45 > 1.03"
     },
     {
       "ante": [
-        11,
-        26,
-        28,
-        30,
-        32
+        20,
+        22,
+        23
       ],
       "cons": "a1",
-      "cond": "f11 BETWEEN 0.03 AND 0.63 AND f26 BETWEEN -1.23 AND -0.63 AND f28 BETWEEN 0.68 AND 1.28 AND f30 > 0.36 AND f32 BETWEEN 0.77 AND 1.37"
+      "cond": "f20 > 1.13 AND f22 > -0.62 AND f23 BETWEEN 0.74 AND 1.34"
+    },
+    {
+      "ante": [
+        9,
+        11,
+        20
+      ],
+      "cons": "a1",
+      "cond": "f9 > -1.4 AND f11 < -1.33 AND f20 > 1.04"
+    },
+    {
+      "ante": [
+        22,
+        26,
+        39,
+        47
+      ],
+      "cons": "a2",
+      "cond": "f22 BETWEEN -0.21 AND 0.39 AND f26 < -1.57 AND f39 BETWEEN 0.70 AND 1.30 AND f47 < 0.34"
+    },
+    {
+      "ante": [
+        2,
+        9,
+        11,
+        55
+      ],
+      "cons": "a1",
+      "cond": "f2 < -1.58 AND f9 < 1.25 AND f11 < 0.67 AND f55 < 0.76"
+    },
+    {
+      "ante": [
+        23,
+        28,
+        54
+      ],
+      "cons": "a1",
+      "cond": "f23 BETWEEN -1.65 AND -1.05 AND f28 BETWEEN 0.18 AND 0.78 AND f54 < 0.76"
     },
     {
       "ante": [
         4,
-        32,
-        40
+        22,
+        26,
+        28
+      ],
+      "cons": "a1",
+      "cond": "f4 BETWEEN 0.97 AND 1.57 AND f22 BETWEEN 1.06 AND 1.66 AND f26 > 0.8 AND f28 > -0.25"
+    },
+    {
+      "ante": [
+        2,
+        4,
+        11,
+        39
+      ],
+      "cons": "a2",
+      "cond": "f2 BETWEEN -0.56 AND 0.04 AND f4 > -0.88 AND f11 < 0.67 AND f39 > -1.56"
+    },
+    {
+      "ante": [
+        2,
+        9,
+        45
       ],
       "cons": "a3",
-      "cond": "f4 BETWEEN -0.77 AND -0.17 AND f32 > 0.53 AND f40 < 1.26"
-    },
-    {
-      "ante": [
-        4,
-        30,
-        32
-      ],
-      "cons": "a2",
-      "cond": "f4 < 0.75 AND f30 BETWEEN -1.47 AND -0.87 AND f32 < 1.68"
-    },
-    {
-      "ante": [
-        1,
-        11,
-        39,
-        40,
-        45
-      ],
-      "cons": "a2",
-      "cond": "f1 BETWEEN 0.87 AND 1.47 AND f11 > -0.83 AND f39 > 1.19 AND f40 < -0.8 AND f45 < -0.92"
+      "cond": "f2 BETWEEN -0.08 AND 0.52 AND f9 < -1.36 AND f45 < 1.34"
     },
     {
       "ante": [
         2,
         4,
         5,
-        30,
-        32
+        26,
+        28
       ],
-      "cons": "a2",
-      "cond": "f2 > 1.26 AND f4 < -0.04 AND f5 < 1.07 AND f30 BETWEEN -1.09 AND -0.49 AND f32 < 0.72"
+      "cons": "a3",
+      "cond": "f2 BETWEEN -1.33 AND -0.73 AND f4 > -0.06 AND f5 BETWEEN -0.84 AND -0.24 AND f26 < -0.48 AND f28 < 0.27"
     },
     {
       "ante": [
         2,
-        12,
-        28,
-        40,
+        4,
+        23,
         45
       ],
       "cons": "a3",
-      "cond": "f2 BETWEEN -0.64 AND -0.04 AND f12 BETWEEN 0.63 AND 1.23 AND f28 BETWEEN -0.39 AND 0.21 AND f40 > -0.03 AND f45 > -1.47"
+      "cond": "f2 BETWEEN -0.10 AND 0.50 AND f4 BETWEEN 1.24 AND 1.84 AND f23 > -0.84 AND f45 < -0.82"
+    },
+    {
+      "ante": [
+        2,
+        5,
+        23,
+        47
+      ],
+      "cons": "a1",
+      "cond": "f2 BETWEEN -1.59 AND -0.99 AND f5 > 1.7 AND f23 > 0.89 AND f47 < -0.45"
+    },
+    {
+      "ante": [
+        9,
+        26,
+        28,
+        54
+      ],
+      "cons": "a1",
+      "cond": "f9 > 0.92 AND f26 < 0.63 AND f28 < -0.2 AND f54 < -0.05"
+    },
+    {
+      "ante": [
+        5,
+        9,
+        11,
+        39
+      ],
+      "cons": "a3",
+      "cond": "f5 < 0.64 AND f9 < 0.1 AND f11 < -1.64 AND f39 > 1.74"
+    },
+    {
+      "ante": [
+        4,
+        9,
+        47
+      ],
+      "cons": "a2",
+      "cond": "f4 > -0.62 AND f9 < -0.01 AND f47 < -1.17"
+    },
+    {
+      "ante": [
+        2,
+        20,
+        45,
+        54
+      ],
+      "cons": "a1",
+      "cond": "f2 BETWEEN -0.67 AND -0.07 AND f20 > -1.65 AND f45 > -0.14 AND f54 BETWEEN 1.00 AND 1.60"
     },
     {
       "ante": [
         11,
-        24,
-        28,
-        30
+        22,
+        26,
+        55
       ],
-      "cons": "a3",
-      "cond": "f11 BETWEEN -0.77 AND -0.17 AND f24 < 0.11 AND f28 BETWEEN 1.49 AND 2.09 AND f30 BETWEEN -0.91 AND -0.31"
+      "cons": "a2",
+      "cond": "f11 BETWEEN -1.48 AND -0.88 AND f22 BETWEEN -0.44 AND 0.16 AND f26 > 1.51 AND f55 > -0.23"
     },
     {
       "ante": [
-        24,
-        26,
+        9,
+        20,
+        22
+      ],
+      "cons": "a2",
+      "cond": "f9 > 0.88 AND f20 > -0.6 AND f22 BETWEEN -1.83 AND -1.23"
+    },
+    {
+      "ante": [
+        5,
+        28,
+        47
+      ],
+      "cons": "a3",
+      "cond": "f5 > 1.13 AND f28 < -1.43 AND f47 BETWEEN -1.39 AND -0.79"
+    },
+    {
+      "ante": [
+        2,
         28,
         39
       ],
-      "cons": "a1",
-      "cond": "f24 < 0.8 AND f26 BETWEEN -1.67 AND -1.07 AND f28 BETWEEN 1.32 AND 1.92 AND f39 > -1.13"
-    },
-    {
-      "ante": [
-        1,
-        5,
-        11,
-        24,
-        40
-      ],
       "cons": "a3",
-      "cond": "f1 > -0.78 AND f5 < 1.2 AND f11 > -0.98 AND f24 BETWEEN -1.01 AND -0.41 AND f40 < 0.12"
+      "cond": "f2 BETWEEN -0.32 AND 0.28 AND f28 < 0.94 AND f39 BETWEEN 0.35 AND 0.95"
     },
     {
       "ante": [
         2,
-        24,
-        40
+        4,
+        23,
+        28,
+        54
+      ],
+      "cons": "a2",
+      "cond": "f2 < -1.55 AND f4 < 0.47 AND f23 < 0.33 AND f28 < 0.03 AND f54 > -0.14"
+    },
+    {
+      "ante": [
+        23,
+        45,
+        47
       ],
       "cons": "a3",
-      "cond": "f2 BETWEEN 1.30 AND 1.90 AND f24 < 1.33 AND f40 > -1.43"
+      "cond": "f23 < 0.03 AND f45 BETWEEN -0.01 AND 0.59 AND f47 < 1.43"
     },
     {
       "ante": [
-        1,
-        4,
-        24,
-        26,
-        45
+        20,
+        23,
+        54,
+        55
       ],
       "cons": "a1",
-      "cond": "f1 < 1.68 AND f4 < 1.59 AND f24 > -1.39 AND f26 > -0.36 AND f45 BETWEEN -0.02 AND 0.58"
+      "cond": "f20 < 1.65 AND f23 < -1.43 AND f54 > 1.74 AND f55 > 0.02"
     },
     {
       "ante": [
+        5,
+        11,
+        26
+      ],
+      "cons": "a2",
+      "cond": "f5 < 1.5 AND f11 < -0.33 AND f26 > 0.64"
+    },
+    {
+      "ante": [
+        2,
+        20,
         39,
         45,
-        49
+        54
       ],
-      "cons": "a3",
-      "cond": "f39 > 1.62 AND f45 > 1.78 AND f49 < 0.21"
+      "cons": "a2",
+      "cond": "f2 BETWEEN -1.08 AND -0.48 AND f20 BETWEEN 0.97 AND 1.57 AND f39 < 1.34 AND f45 BETWEEN -1.81 AND -1.21 AND f54 < -1.29"
     },
     {
       "ante": [
+        2,
         5,
+        11,
+        28
+      ],
+      "cons": "a3",
+      "cond": "f2 > 0.75 AND f5 < -0.69 AND f11 < 0.52 AND f28 BETWEEN 0.83 AND 1.43"
+    },
+    {
+      "ante": [
+        2,
+        4,
+        11,
+        20,
+        39
+      ],
+      "cons": "a3",
+      "cond": "f2 < -0.28 AND f4 < -1.73 AND f11 > -1.15 AND f20 < -0.57 AND f39 > -1.11"
+    },
+    {
+      "ante": [
+        20,
+        45,
+        47
+      ],
+      "cons": "a3",
+      "cond": "f20 > 1.38 AND f45 BETWEEN 0.28 AND 0.88 AND f47 < -1.33"
+    },
+    {
+      "ante": [
+        26,
+        39,
+        55
+      ],
+      "cons": "a2",
+      "cond": "f26 > 0.63 AND f39 BETWEEN 1.39 AND 1.99 AND f55 BETWEEN -1.07 AND -0.47"
+    },
+    {
+      "ante": [
+        4,
+        20,
+        45,
+        55
+      ],
+      "cons": "a1",
+      "cond": "f4 BETWEEN -0.78 AND -0.18 AND f20 < 1.74 AND f45 < 0.97 AND f55 < 0.01"
+    },
+    {
+      "ante": [
+        23,
+        28,
+        47
+      ],
+      "cons": "a2",
+      "cond": "f23 < -1.61 AND f28 BETWEEN 1.05 AND 1.65 AND f47 BETWEEN 1.26 AND 1.86"
+    },
+    {
+      "ante": [
+        9,
         28,
         39,
-        40,
-        45
+        47
       ],
       "cons": "a2",
-      "cond": "f5 < -0.18 AND f28 BETWEEN -1.03 AND -0.43 AND f39 < 1.76 AND f40 > 0.25 AND f45 BETWEEN 0.09 AND 0.69"
+      "cond": "f9 BETWEEN -0.48 AND 0.12 AND f28 < -1.27 AND f39 > -1.47 AND f47 < 1.14"
     },
     {
       "ante": [
-        28,
-        30,
-        45
-      ],
-      "cons": "a1",
-      "cond": "f28 > -0.85 AND f30 > -1.23 AND f45 > 0.19"
-    },
-    {
-      "ante": [
-        1,
-        11,
-        32
-      ],
-      "cons": "a3",
-      "cond": "f1 > -0.11 AND f11 BETWEEN -1.27 AND -0.67 AND f32 < -0.78"
-    },
-    {
-      "ante": [
-        24,
-        28,
-        30
-      ],
-      "cons": "a3",
-      "cond": "f24 > 0.32 AND f28 BETWEEN -0.57 AND 0.03 AND f30 > -0.99"
-    },
-    {
-      "ante": [
-        2,
-        12,
+        9,
         26,
-        49
+        55
       ],
-      "cons": "a1",
-      "cond": "f2 BETWEEN 0.75 AND 1.35 AND f12 BETWEEN 0.60 AND 1.20 AND f26 < 1.52 AND f49 BETWEEN -1.65 AND -1.05"
+      "cons": "a2",
+      "cond": "f9 < 1.78 AND f26 < -0.99 AND f55 BETWEEN 1.25 AND 1.85"
     },
     {
       "ante": [
-        11,
-        24,
-        32,
-        40
+        9,
+        20,
+        26,
+        28,
+        54
       ],
       "cons": "a3",
-      "cond": "f11 > -0.02 AND f24 < 0.35 AND f32 BETWEEN 0.54 AND 1.14 AND f40 > -0.9"
+      "cond": "f9 BETWEEN -0.41 AND 0.19 AND f20 > -1.78 AND f26 > -1.73 AND f28 BETWEEN 0.91 AND 1.51 AND f54 BETWEEN 1.28 AND 1.88"
+    },
+    {
+      "ante": [
+        4,
+        11,
+        26,
+        39
+      ],
+      "cons": "a1",
+      "cond": "f4 BETWEEN -0.59 AND 0.01 AND f11 > -0.15 AND f26 < 1.21 AND f39 > 0.35"
     },
     {
       "ante": [
         5,
+        9,
+        23,
         26,
-        30
-      ],
-      "cons": "a3",
-      "cond": "f5 BETWEEN 1.32 AND 1.92 AND f26 BETWEEN 0.86 AND 1.46 AND f30 > -1.66"
-    },
-    {
-      "ante": [
-        1,
-        24,
-        30,
-        40
-      ],
-      "cons": "a1",
-      "cond": "f1 < 1.79 AND f24 < 0.49 AND f30 < 1.69 AND f40 < -0.55"
-    },
-    {
-      "ante": [
-        4,
-        12,
-        30,
-        49
-      ],
-      "cons": "a2",
-      "cond": "f4 < 0.7 AND f12 < 0.59 AND f30 BETWEEN 0.83 AND 1.43 AND f49 > -1.67"
-    },
-    {
-      "ante": [
-        4,
-        12,
-        24,
-        32
-      ],
-      "cons": "a3",
-      "cond": "f4 > 1.17 AND f12 BETWEEN 0.27 AND 0.87 AND f24 > -0.14 AND f32 < -1.12"
-    },
-    {
-      "ante": [
-        1,
-        2,
-        26,
-        30,
         45
       ],
-      "cons": "a1",
-      "cond": "f1 > -0.84 AND f2 < 1.54 AND f26 < 1.37 AND f30 BETWEEN -1.66 AND -1.06 AND f45 > 0.39"
+      "cons": "a2",
+      "cond": "f5 < -0.93 AND f9 BETWEEN -1.43 AND -0.83 AND f23 < -1.49 AND f26 BETWEEN -1.86 AND -1.26 AND f45 BETWEEN -0.14 AND 0.46"
+    },
+    {
+      "ante": [
+        5,
+        11,
+        22,
+        54
+      ],
+      "cons": "a3",
+      "cond": "f5 > -1.74 AND f11 BETWEEN -0.86 AND -0.26 AND f22 > 0.57 AND f54 BETWEEN 0.68 AND 1.28"
     },
     {
       "ante": [
         2,
-        24,
-        40,
+        28,
         45,
-        49
-      ],
-      "cons": "a2",
-      "cond": "f2 > -1.46 AND f24 > -0.14 AND f40 > 0.53 AND f45 BETWEEN -0.31 AND 0.29 AND f49 BETWEEN -1.05 AND -0.45"
-    },
-    {
-      "ante": [
-        1,
-        26,
-        32,
-        45
-      ],
-      "cons": "a1",
-      "cond": "f1 > -0.16 AND f26 BETWEEN -0.72 AND -0.12 AND f32 > 0.03 AND f45 < 1.31"
-    },
-    {
-      "ante": [
-        4,
-        24,
-        40,
-        45
-      ],
-      "cons": "a1",
-      "cond": "f4 < -0.78 AND f24 BETWEEN 0.91 AND 1.51 AND f40 < 1.8 AND f45 < 1.31"
-    },
-    {
-      "ante": [
-        1,
-        4,
-        11,
-        26,
-        40
-      ],
-      "cons": "a2",
-      "cond": "f1 < -0.16 AND f4 BETWEEN 1.03 AND 1.63 AND f11 < -0.94 AND f26 < -0.96 AND f40 BETWEEN -1.94 AND -1.34"
-    },
-    {
-      "ante": [
-        11,
-        26,
-        32,
-        45
+        47
       ],
       "cons": "a3",
-      "cond": "f11 BETWEEN 0.75 AND 1.35 AND f26 < 1.73 AND f32 > 1.67 AND f45 BETWEEN -0.29 AND 0.31"
+      "cond": "f2 BETWEEN -0.43 AND 0.17 AND f28 > -0.08 AND f45 > 1.12 AND f47 < 0.78"
     },
     {
       "ante": [
-        1,
-        12,
         26,
-        39
+        54,
+        55
       ],
-      "cons": "a3",
-      "cond": "f1 > 1.48 AND f12 < 0.8 AND f26 > 1.34 AND f39 < -1.53"
+      "cons": "a2",
+      "cond": "f26 BETWEEN -0.24 AND 0.36 AND f54 > -0.1 AND f55 > 0.91"
     },
     {
       "ante": [
         5,
-        11,
-        30,
-        32
+        9,
+        39,
+        54
       ],
-      "cons": "a1",
-      "cond": "f5 BETWEEN 0.97 AND 1.57 AND f11 < 1.29 AND f30 BETWEEN 1.33 AND 1.93 AND f32 < 0.79"
+      "cons": "a2",
+      "cond": "f5 BETWEEN 1.10 AND 1.70 AND f9 < -0.22 AND f39 > -0.58 AND f54 < -0.01"
     },
     {
       "ante": [
-        2,
-        5,
-        12,
+        9,
+        20,
+        39,
+        47
+      ],
+      "cons": "a3",
+      "cond": "f9 < -0.27 AND f20 > 0.37 AND f39 < 0.16 AND f47 < -1.43"
+    },
+    {
+      "ante": [
+        4,
+        11,
+        23,
         28,
-        30
+        55
       ],
-      "cons": "a3",
-      "cond": "f2 > 1.52 AND f5 < 0.89 AND f12 BETWEEN 1.42 AND 2.02 AND f28 > 0.73 AND f30 BETWEEN -0.50 AND 0.10"
+      "cons": "a2",
+      "cond": "f4 BETWEEN -0.49 AND 0.11 AND f11 < 1.33 AND f23 < 0.41 AND f28 > -0.81 AND f55 BETWEEN -1.83 AND -1.23"
     },
     {
       "ante": [
         2,
-        4,
-        26,
-        39
+        11,
+        22,
+        28
       ],
-      "cons": "a1",
-      "cond": "f2 < -0.74 AND f4 > -0.25 AND f26 BETWEEN -0.19 AND 0.41 AND f39 > 0.65"
+      "cons": "a2",
+      "cond": "f2 > -1.67 AND f11 BETWEEN -1.25 AND -0.65 AND f22 < -0.48 AND f28 > 1.62"
     },
     {
       "ante": [
-        5,
-        12,
-        49
+        23,
+        39,
+        45,
+        55
+      ],
+      "cons": "a3",
+      "cond": "f23 < -1.3 AND f39 BETWEEN -0.67 AND -0.07 AND f45 > -0.8 AND f55 > -1.71"
+    },
+    {
+      "ante": [
+        4,
+        9,
+        11,
+        47
       ],
       "cons": "a2",
-      "cond": "f5 > 0.43 AND f12 BETWEEN -0.31 AND 0.29 AND f49 < -1.28"
+      "cond": "f4 BETWEEN -1.33 AND -0.73 AND f9 < -0.77 AND f11 > -1.08 AND f47 < 1.27"
+    },
+    {
+      "ante": [
+        39,
+        47,
+        55
+      ],
+      "cons": "a3",
+      "cond": "f39 < 1.68 AND f47 BETWEEN 0.30 AND 0.90 AND f55 BETWEEN -1.87 AND -1.27"
+    },
+    {
+      "ante": [
+        4,
+        11,
+        28,
+        47
+      ],
+      "cons": "a3",
+      "cond": "f4 < 0.5 AND f11 > 0.03 AND f28 > 1.75 AND f47 < -0.95"
+    },
+    {
+      "ante": [
+        2,
+        5,
+        45
+      ],
+      "cons": "a1",
+      "cond": "f2 < -1.56 AND f5 BETWEEN 1.50 AND 2.10 AND f45 < -0.08"
+    },
+    {
+      "ante": [
+        2,
+        28,
+        39,
+        54
+      ],
+      "cons": "a1",
+      "cond": "f2 BETWEEN -0.48 AND 0.12 AND f28 > 0.06 AND f39 BETWEEN 1.06 AND 1.66 AND f54 > 0.5"
+    },
+    {
+      "ante": [
+        22,
+        23,
+        28
+      ],
+      "cons": "a2",
+      "cond": "f22 < -1.21 AND f23 > 1.57 AND f28 BETWEEN -0.85 AND -0.25"
+    },
+    {
+      "ante": [
+        2,
+        9,
+        20,
+        22
+      ],
+      "cons": "a2",
+      "cond": "f2 < -1.35 AND f9 > 0.41 AND f20 > 0.01 AND f22 BETWEEN 0.03 AND 0.63"
+    },
+    {
+      "ante": [
+        22,
+        26,
+        54
+      ],
+      "cons": "a1",
+      "cond": "f22 BETWEEN -1.94 AND -1.34 AND f26 < 0.98 AND f54 BETWEEN 0.24 AND 0.84"
+    },
+    {
+      "ante": [
+        2,
+        20,
+        26,
+        55
+      ],
+      "cons": "a2",
+      "cond": "f2 < 0.51 AND f20 BETWEEN -0.36 AND 0.24 AND f26 < -0.34 AND f55 > -1.54"
+    },
+    {
+      "ante": [
+        4,
+        5,
+        54
+      ],
+      "cons": "a3",
+      "cond": "f4 BETWEEN -1.58 AND -0.98 AND f5 < -0.65 AND f54 > 1.71"
+    },
+    {
+      "ante": [
+        22,
+        23,
+        39,
+        55
+      ],
+      "cons": "a2",
+      "cond": "f22 > -0.18 AND f23 < -1.45 AND f39 BETWEEN 1.30 AND 1.90 AND f55 > -0.29"
     }
   ]
 }
