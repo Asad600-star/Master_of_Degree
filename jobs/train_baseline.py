@@ -1208,7 +1208,7 @@ def make_models(task: str):
             passthrough=False,
             cv=5,
             n_jobs=1,
-        )
+        ) 
 
         return [
             ("LOGREG", logreg, ""),
