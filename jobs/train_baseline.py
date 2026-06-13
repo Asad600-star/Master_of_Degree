@@ -1766,15 +1766,21 @@ def main() -> None:
                 FROM features_daily
                 WHERE symbol = :symbol
                 AND date >= :start_date
+                AND date <= :end_date
                 ORDER BY date
                 """
             ),
             con=engine,
-            params={"symbol": sym, "start_date": TRAIN_START_DATE},
+            params={
+                "symbol": sym,
+                "start_date": TRAIN_START_DATE,
+                "end_date": os.environ.get("END_DATE", "2099-12-31"),
+            },
             parse_dates=["date"],
         )
 
-        print(f"[INFO] {sym}: отфильтровано до данных с {TRAIN_START_DATE} → {len(df)} строк")
+        _end_date_env = os.environ.get("END_DATE", "2099-12-31")
+        print(f"[INFO] {sym}: данные с {TRAIN_START_DATE} по {_end_date_env} → {len(df)} строк")
         if df.empty:
             print(f"[WARN] {sym}: empty, skip")
             continue
@@ -1814,6 +1820,18 @@ def main() -> None:
         if not all_reg:
             raise RuntimeError("No results produced. Check data size/splits.")
         out_df = pd.DataFrame([asdict(r) for r in all_reg])
+        # Сохраняем результаты внешних baselines (ARIMA, GARCH, LSTM и т.д.)
+        # из существующего файла, чтобы они не перезаписались.
+        EXTERNAL_MODELS = {"LSTM", "ARIMA", "GARCH", "GARCH_X"}
+        if OUT_PATH.exists():
+            try:
+                prev = pd.read_csv(OUT_PATH)
+                external = prev[prev["model"].isin(EXTERNAL_MODELS)]
+                if not external.empty:
+                    out_df = pd.concat([out_df, external], ignore_index=True)
+                    print(f"[INFO] Preserved {len(external)} external baseline rows: {sorted(external['model'].unique())}")
+            except Exception as e:
+                print(f"[WARN] Cannot preserve external baselines: {e}")
         out_df.to_csv(OUT_PATH, index=False)
 
         # quick summary across folds (test only)
@@ -1856,6 +1874,18 @@ def main() -> None:
         if not all_clf:
             raise RuntimeError("No results produced. Check data size/splits.")
         out_df = pd.DataFrame([asdict(r) for r in all_clf])
+        # Сохраняем результаты внешних baselines (LSTM, ARIMA, GARCH и т.д.)
+        # из существующего файла, чтобы они не перезаписались.
+        EXTERNAL_MODELS = {"LSTM", "ARIMA", "GARCH", "GARCH_X"}
+        if OUT_PATH.exists():
+            try:
+                prev = pd.read_csv(OUT_PATH)
+                external = prev[prev["model"].isin(EXTERNAL_MODELS)]
+                if not external.empty:
+                    out_df = pd.concat([out_df, external], ignore_index=True)
+                    print(f"[INFO] Preserved {len(external)} external baseline rows: {sorted(external['model'].unique())}")
+            except Exception as e:
+                print(f"[WARN] Cannot preserve external baselines: {e}")
         out_df.to_csv(OUT_PATH, index=False)
 
         if MODE == "walk":
