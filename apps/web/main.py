@@ -21,7 +21,7 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql+psycopg://stock:stockp
 st.set_page_config(page_title="Stock Forecast", page_icon="📈", layout="wide")
 
 st.title("📈 Прогноз направления и волатильности акций")
-st.markdown("**Гибридная ML-модель** • 5-дневный горизонт • Реальное время")
+st.markdown("**Гибридная ML-модель** • горизонт 5 / 10 / 20 дней • Реальное время")
 
 lang = st.sidebar.radio("Язык / Language", ["🇷🇺 Русский", "🇬🇧 English"], horizontal=True)
 is_ru = lang.startswith("🇷🇺")
@@ -29,8 +29,12 @@ is_ru = lang.startswith("🇷🇺")
 symbols = {
     "AAPL": "Apple Inc. (AAPL)",
     "TSLA": "Tesla Inc. (TSLA)",
+    "MSFT": "Microsoft Corp. (MSFT)",
+    "GLD": "SPDR Gold Trust (GLD)",
     "^GSPC": "S&P 500 (^GSPC)",
-    "^IXIC": "Nasdaq Composite (^IXIC)"
+    "^IXIC": "Nasdaq Composite (^IXIC)",
+    "^DJI": "Dow Jones (^DJI)",
+    "^RUT": "Russell 2000 (^RUT)",
 }
 
 symbol = st.sidebar.selectbox(
@@ -39,12 +43,18 @@ symbol = st.sidebar.selectbox(
     format_func=lambda x: symbols[x]
 )
 
-if st.sidebar.button("🔄 Обновить данные и прогноз" if is_ru else "🔄 Refresh", use_container_width=True):
+horizon = st.sidebar.selectbox(
+    "Горизонт прогноза" if is_ru else "Forecast horizon",
+    options=[5, 10, 20],
+    format_func=lambda k: (f"{k} дней вперёд" if is_ru else f"{k} days ahead"),
+)
+
+if st.sidebar.button("🔄 Обновить данные и прогноз" if is_ru else "🔄 Refresh", width='stretch'):
     with st.spinner("Обновление..." if is_ru else "Refreshing..."):
-        result = get_prediction(symbol, refresh=True)
+        result = get_prediction(symbol, horizon=horizon, refresh=True)
     st.success("✅ Обновлено!" if is_ru else "✅ Done!")
 else:
-    result = get_prediction(symbol, refresh=False)
+    result = get_prediction(symbol, horizon=horizon, refresh=False)
 
 st.subheader(f"{symbols[symbol]} • {result['asof_date']}")
 
@@ -60,9 +70,9 @@ with c3:
               result["risk_label_ru"] if is_ru else result["risk_label_en"])
 
 if is_ru:
-    st.info(f"**Вероятность роста:** {result['p_up']:.1%} | **Ожидаемая волатильность (5 дней):** {result['vol_pred']:.2%}")
+    st.info(f"**Вероятность роста ({horizon} дней):** {result['p_up']:.1%} | **Ожидаемая волатильность ({horizon} дней):** {result['vol_pred']:.2%}")
 else:
-    st.info(f"**Probability of rise:** {result['p_up']:.1%} | **Expected 5d volatility:** {result['vol_pred']:.2%}")
+    st.info(f"**Probability of rise ({horizon}d):** {result['p_up']:.1%} | **Expected {horizon}d volatility:** {result['vol_pred']:.2%}")
 
 st.subheader("🛡️ Risk Management")
 st.success(result["risk_summary_ru"] if is_ru else result["risk_summary_en"])
@@ -85,12 +95,12 @@ fig.add_trace(go.Scatter(
 ))
 
 last_close = float(df_price["close"].iloc[-1])
-dates_future = pd.date_range(start=df_price["date"].iloc[-1], periods=6, freq="B")[1:]
-# Корректнее: коридор расширяется как sqrt(t) (классическая стохастика)
+dates_future = pd.date_range(start=df_price["date"].iloc[-1], periods=horizon + 1, freq="B")[1:]
+# Корридор расширяется как sqrt(t) (классическая стохастика) на выбранный горизонт
 import numpy as np
 sigma = float(result["vol_pred"])
-upper = [last_close * (1 + sigma * np.sqrt(i)) for i in range(1, 6)]
-lower = [last_close * (1 - sigma * np.sqrt(i)) for i in range(1, 6)]
+upper = [last_close * (1 + sigma * np.sqrt(i)) for i in range(1, horizon + 1)]
+lower = [last_close * (1 - sigma * np.sqrt(i)) for i in range(1, horizon + 1)]
 
 fig.add_trace(go.Scatter(x=dates_future, y=upper, mode="lines",
                          line=dict(color="rgba(34,197,94,0.4)"),
@@ -102,7 +112,7 @@ fig.add_trace(go.Scatter(x=dates_future, y=lower, mode="lines",
 
 fig.update_layout(height=500, template="plotly_dark",
                   title=f"{symbol} — {'Последние 60 дней + прогноз' if is_ru else 'Last 60 days + forecast'}")
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width='stretch')
 
 # ==================== SHAP ====================
 st.subheader("🔍 Почему модель решила именно так? (SHAP)" if is_ru else "🔍 Why did the model decide so? (SHAP)")
@@ -136,12 +146,12 @@ if shap_file.exists():
         xaxis_title="Вклад в вероятность роста" if is_ru else "Contribution to P(up)",
         yaxis_title=""
     )
-    st.plotly_chart(fig_shap, use_container_width=True)
+    st.plotly_chart(fig_shap, width='stretch')
 
     st.write("**Топ факторов (по силе влияния):**" if is_ru else "**Top factors (by impact):**")
     table_data = {("Фактор" if is_ru else "Feature"): names,
                   ("Вклад" if is_ru else "Contribution"): [f"{v:+.4f}" for v in values]}
-    st.dataframe(pd.DataFrame(table_data), use_container_width=True)
+    st.dataframe(pd.DataFrame(table_data), width='stretch')
 
 else:
     st.info("SHAP-график будет доступен после следующего полного обновления модели."

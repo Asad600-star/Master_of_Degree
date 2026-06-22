@@ -396,12 +396,19 @@ def select_best_models(horizon_days: int) -> dict:
     """
     out = {"direction": {}, "volatility": {}}
 
+    # Baseline-модели (LSTM, ARIMA, GARCH) служат только для научного сравнения
+    # в статье; production-инференс (бот/сайт) их не обучает на лету, поэтому
+    # исключаем их из выбора и берём лучшую обучаемую модель.
+    EXTERNAL_BASELINES = {"LSTM", "ARIMA", "GARCH", "GARCH_X"}
+
     # --- 1) Prefer persisted registry if present ---
     reg = _read_registry_safe(horizon_days)
     if not reg.empty and {"task", "symbol", "model"}.issubset(reg.columns):
         reg = reg.copy()
         if "horizon_days" in reg.columns:
             reg = reg[reg["horizon_days"].astype(int) == int(horizon_days)]
+        # исключаем baseline-модели из production-выбора
+        reg = reg[~reg["model"].astype(str).isin(EXTERNAL_BASELINES)]
 
         for task_name in ("direction", "volatility"):
             part = reg[reg["task"].astype(str) == task_name].copy()
@@ -414,10 +421,10 @@ def select_best_models(horizon_days: int) -> dict:
                     zip(part["symbol"].astype(str), part["model"].astype(str))
                 )
 
-        if out["direction"] or out["volatility"]:
-            return out
-
-    # --- 2) Fallback to metrics files ---
+    # --- 2) Fallback to metrics files (дополняет недостающие символы) ---
+    # Считаем лучшую обучаемую модель из walk-forward метрик и ДОПОЛНЯЕМ ею
+    # символы, для которых registry не дал production-модель (например там был
+    # только LSTM, который мы исключили выше).
     d_path = METRICS_DIR / f"metrics_walk_direction_k{horizon_days}.csv"
     v_path = METRICS_DIR / f"metrics_walk_volatility_k{horizon_days}.csv"
 
@@ -428,6 +435,7 @@ def select_best_models(horizon_days: int) -> dict:
     if not d.empty and {"symbol", "model", "split", "auc"}.issubset(d.columns):
         dd = d[d["split"] == "test"].copy()
         dd = dd[~dd["model"].astype(str).str.startswith("BASELINE")]
+        dd = dd[~dd["model"].astype(str).isin(EXTERNAL_BASELINES)]
         if not dd.empty:
             s = (
                 dd.groupby(["symbol", "model"], as_index=False)
@@ -435,12 +443,16 @@ def select_best_models(horizon_days: int) -> dict:
                 .sort_values(["symbol", "auc_mean"], ascending=[True, False])
             )
             best = s.groupby("symbol", as_index=False).head(1)
-            out["direction"] = dict(zip(best["symbol"].astype(str), best["model"].astype(str)))
+            fallback_dir = dict(zip(best["symbol"].astype(str), best["model"].astype(str)))
+            # дополняем только недостающие символы (registry имеет приоритет)
+            for sym, model in fallback_dir.items():
+                out["direction"].setdefault(sym, model)
 
     # Volatility: minimize RMSE on test splits
     if not v.empty and {"symbol", "model", "split", "rmse"}.issubset(v.columns):
         vv = v[v["split"] == "test"].copy()
         vv = vv[~vv["model"].astype(str).str.startswith("BASELINE")]
+        vv = vv[~vv["model"].astype(str).isin(EXTERNAL_BASELINES)]
         if not vv.empty:
             s = (
                 vv.groupby(["symbol", "model"], as_index=False)
@@ -448,7 +460,9 @@ def select_best_models(horizon_days: int) -> dict:
                 .sort_values(["symbol", "rmse_mean"], ascending=[True, True])
             )
             best = s.groupby("symbol", as_index=False).head(1)
-            out["volatility"] = dict(zip(best["symbol"].astype(str), best["model"].astype(str)))
+            fallback_vol = dict(zip(best["symbol"].astype(str), best["model"].astype(str)))
+            for sym, model in fallback_vol.items():
+                out["volatility"].setdefault(sym, model)
 
     return out
 

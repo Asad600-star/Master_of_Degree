@@ -44,13 +44,18 @@ scheduler = AsyncIOScheduler()
 # ==================== КЛАВИАТУРА ====================
 keyboard = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text="AAPL"), KeyboardButton(text="TSLA")],
-        [KeyboardButton(text="^GSPC"), KeyboardButton(text="^IXIC")],
+        [KeyboardButton(text="AAPL"), KeyboardButton(text="TSLA"), KeyboardButton(text="MSFT"), KeyboardButton(text="GLD")],
+        [KeyboardButton(text="^GSPC"), KeyboardButton(text="^IXIC"), KeyboardButton(text="^DJI"), KeyboardButton(text="^RUT")],
+        [KeyboardButton(text="📅 5 дней"), KeyboardButton(text="📅 10 дней"), KeyboardButton(text="📅 20 дней")],
         [KeyboardButton(text="Все прогнозы")],
     ],
     resize_keyboard=True,
     persistent=True,
 )
+
+# Список инструментов и поддерживаемые горизонты
+ALL_SYMBOLS = ["AAPL", "TSLA", "MSFT", "GLD", "^GSPC", "^IXIC", "^DJI", "^RUT"]
+HORIZON_BUTTONS = {"📅 5 дней": 5, "📅 10 дней": 10, "📅 20 дней": 20}
 
 
 # ==================== USERS PERSISTENCE ====================
@@ -121,15 +126,16 @@ async def me_handler(message: types.Message):
 
 
 def _format_prediction(result: dict, lang: str = "ru") -> str:
+    hd = result.get("horizon_days", 5)
     if lang == "ru":
         return (
             f"📈 <b>{result['name_ru']} ({result['symbol']})</b>\n"
-            f"📅 {result['asof_date']}\n\n"
+            f"📅 {result['asof_date']} • горизонт {hd} дней\n\n"
             f"🔹 Рекомендация: <b>{result['recommendation_ru']}</b>\n"
             f"🔹 Уверенность: {result['confidence_ru']}\n"
             f"🔹 Риск: {result['risk_label_ru']}\n\n"
-            f"📊 Вероятность роста: <b>{result['p_up']:.1%}</b>\n"
-            f"📊 Волатильность: <b>{result['vol_pred']:.2%}</b>\n\n"
+            f"📊 Вероятность роста ({hd}д): <b>{result['p_up']:.1%}</b>\n"
+            f"📊 Волатильность ({hd}д): <b>{result['vol_pred']:.2%}</b>\n\n"
             f"🛡️ {result['risk_summary_ru']}"
         )
     return (
@@ -144,23 +150,36 @@ def _format_prediction(result: dict, lang: str = "ru") -> str:
     )
 
 
-@dp.message(F.text.in_({"AAPL", "TSLA", "^GSPC", "^IXIC", "Все прогнозы"}))
+@dp.message(F.text.in_(set(HORIZON_BUTTONS.keys())))
+async def set_horizon(message: types.Message):
+    """Сохраняет выбранный пользователем горизонт прогноза."""
+    update_user_info(message)
+    chat_id = str(message.chat.id)
+    h = HORIZON_BUTTONS[message.text]
+    users[chat_id]["horizon"] = h
+    save_users(users)
+    await message.answer(f"✅ Горизонт прогноза: <b>{h} дней</b>. Теперь выберите инструмент.", parse_mode="HTML")
+
+
+@dp.message(F.text.in_(set(ALL_SYMBOLS) | {"Все прогнозы"}))
 async def quick_predict(message: types.Message):
     update_user_info(message)
     chat_id = str(message.chat.id)
     users[chat_id]["total_predictions"] = users[chat_id].get("total_predictions", 0) + 1
     save_users(users)
 
+    horizon = int(users[chat_id].get("horizon", 5))
+
     if message.text == "Все прогнозы":
-        symbols = ["AAPL", "TSLA", "^GSPC", "^IXIC"]
-        await message.answer("🔄 Считаю прогнозы…")
+        symbols = ALL_SYMBOLS
+        await message.answer(f"🔄 Считаю прогнозы (горизонт {horizon} дней)…")
     else:
         symbols = [message.text]
 
     for symbol in symbols:
         try:
             # refresh=False — используем закэшированные модели; обновление цен делает daily_update
-            result = get_prediction(symbol, refresh=False)
+            result = get_prediction(symbol, horizon=horizon, refresh=False)
             await message.answer(_format_prediction(result, lang="ru"), parse_mode="HTML")
         except Exception as e:
             log.exception("Ошибка прогноза для %s", symbol)
@@ -172,10 +191,10 @@ async def send_daily_forecast():
     if not users:
         return
     log.info("Запуск ежедневной рассылки на %d пользователей", len(users))
-    symbols = ["AAPL", "TSLA", "^GSPC", "^IXIC"]
+    symbols = ALL_SYMBOLS
     for symbol in symbols:
         try:
-            result = get_prediction(symbol, refresh=False)
+            result = get_prediction(symbol, horizon=5, refresh=False)
             text = (
                 f"🔔 <b>Ежедневный прогноз • {datetime.now().strftime('%d.%m.%Y')}</b>\n\n"
                 + _format_prediction(result, lang="ru")

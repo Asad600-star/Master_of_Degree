@@ -175,3 +175,137 @@ bash reproduce_results.sh
   (mean AUC 0.48–0.55 у всех моделей, включая LSTM), что согласуется с
   гипотезой эффективного рынка. Главный вклад работы — интерпретируемая,
   воспроизводимая система с 150 продукционными правилами и риск-модулем.
+
+---
+
+# 🧑‍🔬 Quick Start for Reviewers
+
+This section gives a step-by-step guide to run the system and verify the
+claims made in the paper. Two independent paths are provided: a **live demo**
+(web app + Telegram bot) and a **full reproduction** of every reported number.
+
+## Prerequisites
+
+- **Python 3.13**
+- **Docker** (for the bundled PostgreSQL database)
+- macOS / Linux (the LSTM baseline auto-detects Apple MPS, NVIDIA CUDA, or CPU)
+
+## Installation
+
+```bash
+# 1. Clone the repository
+git clone <REPO_URL>
+cd hybrid-stock-forecasting
+
+# 2. Create environment and install dependencies
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# 3. Configure environment variables
+cp .env.example .env
+# (the defaults work out of the box; edit only if you change DB credentials
+#  or want to run the Telegram bot — then add your own BotFather token)
+
+# 4. Start the PostgreSQL database
+docker-compose up -d
+```
+
+## Option A — Reproduce the paper results (recommended for verification)
+
+A single script regenerates every number, table, and metric reported in the
+paper, end to end, from raw market data:
+
+```bash
+bash reproduce_results.sh
+```
+
+This will:
+1. Ingest OHLCV data from Yahoo Finance for 8 instruments + 3 macro indicators.
+2. Build the 56-dimensional causal feature matrix.
+3. Train the hybrid models, ExtraTrees, and all baselines (LSTM, ARIMA, GARCH,
+   vanilla XGB/LGBM) under walk-forward cross-validation.
+4. Run the sensitivity analysis (K = 5, 10, 20), the ablation study, and the
+   Diebold-Mariano significance test.
+5. Write all comparison tables to `artifacts/paper_tables.txt`.
+
+**Reproducibility is pinned** (`SEED=42`, `END_DATE=2026-06-01`,
+`TRAIN_START_DATE=2015-01-01`), so the output matches the paper. A static data
+snapshot is included in `data/market_ohlcv_snapshot.csv` in case the live API
+is unavailable.
+
+Expected total runtime: ~3-5 hours on a modern laptop (the walk-forward
+training of hybrid ensembles across 8 instruments and 3 horizons is the
+dominant cost).
+
+### How to verify the key claims
+
+| Claim in paper | Where to check |
+|----------------|----------------|
+| ExtraTrees beats ARIMA/GARCH by ~40%/33% in mean RMSE | `artifacts/paper_tables.txt`, Table B2 |
+| Difference is statistically significant | `artifacts/dm_test_results.csv` (p-values) |
+| Direction AUC is near the no-skill boundary for all models | `artifacts/paper_tables.txt`, Table B1 |
+| Feature groups each contribute (ablation) | `artifacts/ablation_pivot.csv` |
+| Robustness across horizons | `artifacts/metrics_walk_volatility_k{5,10,20}.csv` |
+
+## Option B — Live demo (interactive)
+
+To see the system in action on current market data:
+
+```bash
+source .venv/bin/activate
+
+# Web dashboard (opens in browser at http://localhost:8501)
+streamlit run apps/web/main.py
+```
+
+In the dashboard you can select any of the 8 instruments and any of the 3
+forecast horizons (5, 10, 20 days). For each request the system returns the
+calibrated up-probability, the forecast volatility, a Value-at-Risk based
+recommendation, and the SHAP attribution explaining the decision.
+
+> Note: the first request for a given (symbol, horizon) trains the selected
+> model on the fly (1-2 minutes); subsequent requests are instant.
+
+Optionally, the Telegram bot:
+
+```bash
+# add your BotFather token to .env first (TELEGRAM_BOT_TOKEN)
+python -m jobs.bot
+```
+
+## Repository layout
+
+```
+jobs/        data ingestion, feature building, training, baselines, evaluation
+core/        risk manager, SHAP explainer
+services/    high-level prediction service used by the UI
+apps/web/    Streamlit dashboard
+data/        static market-data snapshot for offline reproduction
+artifacts/   metrics, SHAP values, comparison tables (results)
+reproduce_results.sh   single-command full reproduction
+```
+
+## Notes on honest reporting
+
+The paper reports results as they are. Directional prediction on daily data is
+close to the no-skill boundary for **every** model tested, including the
+deep-learning LSTM baseline; this is consistent with weak-form market
+efficiency and is discussed in the Limitations section. The system's
+quantitative strength is in volatility forecasting and in providing an
+auditable, rule-based, fully reproducible decision pipeline.
+
+## Economic back-test (honest reporting)
+
+An event-driven back-test (`jobs/backtest.py`, ~3.2 years, 5 bps per trade) shows
+that the rule-gated trading strategy **does not beat passive buy-and-hold**: its
+annualised return is near zero on every instrument while buy-and-hold returned
+4-47% per year over the same bull-market window. This is the expected outcome
+given that daily directional accuracy is near the no-skill boundary, and it is a
+direct empirical confirmation of weak-form market efficiency. We report it
+openly: the value of the system is in calibrated volatility forecasting,
+interpretability, and reproducibility, not in a trading edge.
+
+```bash
+python -m jobs.backtest   # regenerates the back-test table
+```

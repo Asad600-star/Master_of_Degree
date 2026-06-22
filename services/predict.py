@@ -27,9 +27,16 @@ risk_manager = RiskManager()
 NAME_MAP = {
     "AAPL": "Apple Inc.",
     "TSLA": "Tesla Inc.",
+    "MSFT": "Microsoft Corp.",
+    "GLD": "SPDR Gold Trust",
     "^GSPC": "S&P 500",
     "^IXIC": "Nasdaq Composite",
+    "^DJI": "Dow Jones Industrial Average",
+    "^RUT": "Russell 2000",
 }
+
+# Поддерживаемые горизонты прогноза (дней вперёд)
+SUPPORTED_HORIZONS = [5, 10, 20]
 
 
 def _run(cmd: list[str], extra_env: dict | None = None):
@@ -45,43 +52,58 @@ def _refresh_prices_and_features():
     _run([sys.executable, "-m", "jobs.build_features"])
 
 
-def _run_inference(symbol: str | None = None):
-    extra_env = {"ACTION": "infer", "HORIZON_DAYS": "5"}
+def _predictions_file(horizon: int) -> Path:
+    """Отдельный файл прогнозов на каждый горизонт."""
+    return ARTIFACTS_DIR / f"predictions_latest_k{horizon}.csv"
+
+
+def _run_inference(symbol: str | None = None, horizon: int = 5):
+    extra_env = {
+        "ACTION": "infer",
+        "HORIZON_DAYS": str(horizon),
+        "PRED_OUT": str(_predictions_file(horizon)),
+    }
     if symbol:
         extra_env["ONLY_SYMBOL"] = symbol
     _run([sys.executable, "-m", "jobs.train_baseline"], extra_env)
 
 
-def get_prediction(symbol: str, refresh: bool = False) -> dict:
-    """Возвращает прогноз по символу.
+def get_prediction(symbol: str, horizon: int = 5, refresh: bool = False) -> dict:
+    """Возвращает прогноз по символу на заданный горизонт (5, 10 или 20 дней).
 
+    horizon       → горизонт прогноза в торговых днях (по умолчанию 5).
     refresh=True  → обновить цены, пересчитать фичи, заново посчитать инференс.
-    refresh=False → попытаться вернуть последнее сохранённое в predictions_latest.csv;
+    refresh=False → попытаться вернуть последнее сохранённое для этого горизонта;
                     если нет строки для символа — запустить инференс на лету.
     """
     symbol = symbol.strip().upper()
+    if horizon not in SUPPORTED_HORIZONS:
+        raise ValueError(f"Горизонт {horizon} не поддерживается. Доступны: {SUPPORTED_HORIZONS}")
+
+    pred_file = _predictions_file(horizon)
 
     if refresh:
         _refresh_prices_and_features()
-        _run_inference(symbol)
-    elif not PREDICTIONS_FILE.exists():
-        _run_inference(symbol)
+        _run_inference(symbol, horizon)
+    elif not pred_file.exists():
+        _run_inference(symbol, horizon)
 
-    df = pd.read_csv(PREDICTIONS_FILE)
+    df = pd.read_csv(pred_file)
     matched = df[df["symbol"] == symbol]
     if matched.empty:
-        # Не было прогноза для этого символа — считаем
-        _run_inference(symbol)
-        df = pd.read_csv(PREDICTIONS_FILE)
+        # Не было прогноза для этого символа на этом горизонте — считаем
+        _run_inference(symbol, horizon)
+        df = pd.read_csv(pred_file)
         matched = df[df["symbol"] == symbol]
         if matched.empty:
-            raise RuntimeError(f"Нет прогноза для {symbol} даже после инференса")
+            raise RuntimeError(f"Нет прогноза для {symbol} (горизонт {horizon}) даже после инференса")
 
     row = matched.iloc[-1].to_dict()
 
     pred = {
         "symbol": symbol,
         "name_ru": NAME_MAP.get(symbol, symbol),
+        "horizon_days": horizon,
         "asof_date": row["asof_date"],
         "p_up": round(float(row["p_up"]), 4),
         "vol_pred": round(float(row["vol_pred"]), 4),
