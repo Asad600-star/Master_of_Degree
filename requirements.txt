@@ -23,3 +23,10 @@ apscheduler>=3.10.0
 # Дополнительно
 requests
 tqdm
+
+# Baselines и статистика для Q1-статьи (LSTM, ARIMA/GARCH, Diebold-Mariano)
+torch>=2.2.0          # LSTM baseline (MPS/CUDA/CPU)
+statsmodels>=0.14.0   # ARIMA baseline
+arch>=7.0.0           # GARCH baseline
+scipy>=1.11.0         # Diebold-Mariano (t-distribution)
+seaborn>=0.13.0       # графики для статьи

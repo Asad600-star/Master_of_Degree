@@ -305,8 +305,11 @@ def append_to_metrics_csv(rows: list[RowReg]) -> None:
 
     if OUT_CSV.exists():
         old = pd.read_csv(OUT_CSV)
-        # Удаляем предыдущие ARIMA/GARCH строки если есть
-        old = old[~old["model"].isin(["ARIMA", "GARCH"])]
+        # Удаляем только ARIMA/GARCH строки для ТЕХ символов, что пересчитываем
+        # (чтобы досчёт новых тикеров не стирал старые результаты).
+        recomputed_symbols = set(new_df["symbol"].unique())
+        mask_drop = old["model"].isin(["ARIMA", "GARCH"]) & old["symbol"].isin(recomputed_symbols)
+        old = old[~mask_drop]
         combined = pd.concat([old, new_df], ignore_index=True)
     else:
         combined = new_df

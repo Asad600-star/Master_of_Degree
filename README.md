@@ -128,3 +128,50 @@ HORIZON_DAYS=5 — горизонт прогнозирования
 Автор: Асадбек Икромов
 Год: 2026
 
+
+---
+
+## 🔬 Воспроизведение результатов статьи (Q1 paper)
+
+Эта система лежит в основе научной статьи "Mathematical Representation of
+Decision-Making for Hybrid Forecasting of Stock Price Direction and Volatility
+Based on Production Logic".
+
+### Полное воспроизведение одной командой
+
+```bash
+bash reproduce_results.sh
+```
+
+Скрипт воспроизводит **все** числа из статьи end-to-end: от загрузки сырых
+данных через yfinance до финальных таблиц. Зафиксировано для воспроизводимости:
+`SEED=42`, `END_DATE=2026-06-01`, `TRAIN_START_DATE=2015-01-01`.
+
+### Экспериментальный протокол
+
+- **8 инструментов:** AAPL, TSLA, MSFT, GLD, S&P 500, NASDAQ, Dow Jones, Russell 2000
+- **3 макро-индикатора (признаки):** ^VIX, ^IRX, ^TNX
+- **Walk-forward CV:** ~22 фолда (min_train=1200, val=126, test=126, step=63)
+- **Baselines:** LSTM (deep learning), ARIMA + GARCH (эконометрика), vanilla XGB/LGBM
+- **Статистика:** Diebold-Mariano test (HLN-корректировка) + bootstrap 95% CI (B=1000)
+
+### Ключевые скрипты экспериментов
+
+| Скрипт | Назначение |
+|--------|-----------|
+| `jobs/train_baseline.py` | HYBRID_VOTING, HYBRID_STACK, ExtraTrees, vanilla baselines |
+| `jobs/train_lstm_baseline.py` | LSTM baseline (PyTorch, MPS/CUDA/CPU) |
+| `jobs/train_arima_garch_baseline.py` | ARIMA + GARCH эконометрические baselines |
+| `jobs/diebold_mariano_test.py` | Тест статистической значимости (HLN) |
+| `jobs/ablation_study.py` | Вклад групп признаков |
+| `jobs/generate_paper_tables.py` | Генерация всех таблиц статьи |
+
+### Основные результаты
+
+- **Volatility:** ExtraTrees / HYBRID_STACK_REG превосходят ARIMA на **40%** и
+  GARCH на **33%** по среднему RMSE (значимо по Diebold-Mariano на большинстве
+  инструментов).
+- **Direction:** прогноз направления на дневных данных близок к случайному
+  (mean AUC 0.48–0.55 у всех моделей, включая LSTM), что согласуется с
+  гипотезой эффективного рынка. Главный вклад работы — интерпретируемая,
+  воспроизводимая система с 150 продукционными правилами и риск-модулем.

@@ -208,7 +208,7 @@ def get_aligned_metric(
 #   EXTRATREES vs XGB, LGBM, HGB
 # ─────────────────────────────────────────────────────────────────────
 
-SYMBOLS = ["AAPL", "TSLA", "^GSPC", "^IXIC"]
+SYMBOLS = ["AAPL", "TSLA", "^GSPC", "^IXIC", "^DJI", "^RUT", "GLD", "MSFT"]
 
 DIRECTION_COMPARISONS = [
     # (наша модель, baseline)
