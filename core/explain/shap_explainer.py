@@ -11,9 +11,9 @@ ARTIFACTS.mkdir(exist_ok=True)
 
 
 def _transform_X_through_pipeline(pipe: Pipeline, X: np.ndarray) -> tuple[np.ndarray, object]:
-    """Применяем все шаги пайплайна КРОМЕ последнего (модели) к X.
+    """Applies all pipeline steps EXCEPT the last (the model) to X.
 
-    Возвращаем (X_transformed, final_estimator).
+    Returns (X_transformed, final_estimator).
     """
     if not isinstance(pipe, Pipeline):
         return X, pipe
@@ -26,7 +26,7 @@ def _transform_X_through_pipeline(pipe: Pipeline, X: np.ndarray) -> tuple[np.nda
 
 
 def _explain_one(estimator, X_for_explainer: np.ndarray, X_background: np.ndarray) -> tuple[np.ndarray, float]:
-    """SHAP для одной модели (после извлечения из pipeline)."""
+    """SHAP for a single model (after extraction from the pipeline)."""
     is_tree_based = (
         hasattr(estimator, "feature_importances_")
         or hasattr(estimator, "estimators_")
@@ -45,7 +45,7 @@ def _explain_one(estimator, X_for_explainer: np.ndarray, X_background: np.ndarra
             ev = float(np.asarray(ev).flatten()[-1])
         return np.asarray(sv), float(ev)
 
-    # Линейные модели
+    # Linear models
     explainer = shap.LinearExplainer(estimator, X_background)
     sv = explainer.shap_values(X_for_explainer)
     ev = explainer.expected_value
@@ -56,16 +56,16 @@ def _explain_one(estimator, X_for_explainer: np.ndarray, X_background: np.ndarra
 
 def compute_and_save_shap(model, X_latest: np.ndarray, feature_names: list, symbol_task: str,
                            X_background: np.ndarray | None = None):
-    """Корректный SHAP для Voting/Stacking/Pipeline/обычной модели.
-    StandardScaler внутри Pipeline применяется до Explainer.
+    """Correct SHAP for Voting/Stacking/Pipeline/plain models.
+    A StandardScaler inside the Pipeline is applied before the Explainer.
     """
-    print(f"[SHAP] {symbol_task}: запуск...")
+    print(f"[SHAP] {symbol_task}: running...")
     X_latest = np.asarray(X_latest)
     X_background = np.asarray(X_background) if X_background is not None else X_latest
 
     try:
         if isinstance(model, (VotingClassifier, StackingClassifier)):
-            print(f"[SHAP] {symbol_task}: ансамбль ({type(model).__name__})")
+            print(f"[SHAP] {symbol_task}: ensemble ({type(model).__name__})")
             shap_values_list = []
             base_values = []
             estimators = (
@@ -86,10 +86,10 @@ def compute_and_save_shap(model, X_latest: np.ndarray, feature_names: list, symb
                     shap_values_list.append(sv)
                     base_values.append(ev)
                 except Exception as e:
-                    print(f"[SHAP] {symbol_task}: пропустил {name} ({e})")
+                    print(f"[SHAP] {symbol_task}: skipped {name} ({e})")
 
             if not shap_values_list:
-                raise RuntimeError("Не удалось посчитать SHAP ни для одной подмодели")
+                raise RuntimeError("Could not compute SHAP for any sub-model")
 
             arr = np.stack([np.asarray(s).reshape(len(X_latest), -1) for s in shap_values_list], axis=0)
             shap_values = arr.mean(axis=0)
@@ -121,7 +121,7 @@ def compute_and_save_shap(model, X_latest: np.ndarray, feature_names: list, symb
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
 
-        print(f"[SHAP] {symbol_task}: сохранено → {filepath}")
+        print(f"[SHAP] {symbol_task}: saved -> {filepath}")
         return result
 
     except Exception as e:

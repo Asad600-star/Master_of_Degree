@@ -82,10 +82,12 @@ for K in 10 20; do
     HORIZON_DAYS=$K TASK=volatility python -m jobs.train_baseline
 done
 
-# ─── Шаг 7: Ablation study ───
+# ─── Шаг 7: Ablation study + извлечение правил из дерева ───
 echo ""
 echo "[7/8] Ablation study (вклад групп признаков)..."
 python -m jobs.ablation_study
+echo "      Извлечение 76 продукционных правил из дерева решений..."
+python -m jobs.extract_rules_from_tree
 
 # ─── Шаг 8: Diebold-Mariano + финальные таблицы ───
 echo ""

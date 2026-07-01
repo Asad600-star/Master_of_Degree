@@ -108,7 +108,7 @@ def build_features_for_symbol(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
 
 
 def ensure_features_table(engine):
-    """Создаём/обновляем таблицу features_daily + гарантируем наличие всех макро-колонок"""
+    """Creates/updates the features_daily table and ensures all macro columns exist."""
     ddl = """
     CREATE TABLE IF NOT EXISTS features_daily (
         symbol text NOT NULL,
@@ -138,7 +138,7 @@ def ensure_features_table(engine):
     with engine.begin() as conn:
         conn.execute(text(ddl))
 
-        # Добавляем макро-колонки, если их ещё нет
+        # Add macro columns if missing
         macro_cols = [
             ("mkt_return_1d", "double precision"),
             ("mkt_log_return", "double precision"),
@@ -158,11 +158,11 @@ def ensure_features_table(engine):
         for col, typ in macro_cols:
             conn.execute(text(f"ALTER TABLE features_daily ADD COLUMN IF NOT EXISTS {col} {typ}"))
 
-        # Создаём индексы
+        # Create indexes
         conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS features_daily_symbol_date_uq ON features_daily(symbol, date)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS features_daily_date_idx ON features_daily(date)"))
 
-    print("[OK] Таблица features_daily проверена и обновлена")
+    print("[OK] features_daily table verified and updated")
 
 
 def main() -> None:

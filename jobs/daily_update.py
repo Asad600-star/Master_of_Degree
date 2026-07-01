@@ -1,6 +1,6 @@
-"""Ежедневное обновление: цены → фичи → инференс direction + volatility.
+"""Daily update: prices -> features -> direction + volatility inference.
 
-Запуск:
+Run:
     python -m jobs.daily_update
 """
 
@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
 
-print("🚀 Запуск ежедневного обновления Master_of_Degree...")
+print("[RUN] Starting daily update...")
 
 
 def _run(args: list[str], extra_env: dict | None = None):
@@ -26,21 +26,21 @@ def _run(args: list[str], extra_env: dict | None = None):
     print(f"▶️  {' '.join(args)}  ({extra_env or ''})")
     result = subprocess.run(args, cwd=ROOT, env=env)
     if result.returncode != 0:
-        print(f"❌ Ошибка на шаге: {' '.join(args)}")
+        print(f"[ERROR] Failed step: {' '.join(args)}")
         sys.exit(1)
 
 
-# 1) Загрузка новых цен
+# 1) Ingest new prices
 _run([sys.executable, "-m", "jobs.ingest_prices"])
 
-# 2) Пересчёт фич
+# 2) Rebuild features
 _run([sys.executable, "-m", "jobs.build_features"])
 
-# 3) Инференс по направлению
+# 3) Direction inference
 _run([sys.executable, "-m", "jobs.train_baseline"], {"ACTION": "infer", "TASK": "direction"})
 
-# 4) Инференс по волатильности
+# 4) Volatility inference
 _run([sys.executable, "-m", "jobs.train_baseline"], {"ACTION": "infer", "TASK": "volatility"})
 
-print("✅ Ежедневное обновление завершено успешно!")
-print(f"Время: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
+print("[OK] Daily update finished successfully.")
+print(f"Time: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
