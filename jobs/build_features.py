@@ -100,10 +100,13 @@ def build_features_for_symbol(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
     for lag in range(1, MAX_LAG + 1):
         df[f"return_lag_{lag}"] = df["return_1d"].shift(lag)
 
+    # next-day return, stored for reference only (it is never used as a feature);
+    # it is missing on the last day, which must still be kept for live inference
     df["target_return_1d"] = df["return_1d"].shift(-1)
     df["symbol"] = symbol
 
-    df = df.replace([np.inf, -np.inf], np.nan).dropna().reset_index(drop=True)
+    causal = [c for c in df.columns if c != "target_return_1d"]
+    df = df.replace([np.inf, -np.inf], np.nan).dropna(subset=causal).reset_index(drop=True)
     return df
 
 
@@ -138,8 +141,10 @@ def ensure_features_table(engine):
     with engine.begin() as conn:
         conn.execute(text(ddl))
 
-        # Add macro columns if missing
+        # Add the remaining columns if missing (a fresh database has only the base columns)
         macro_cols = [
+            ("target_return_1d", "double precision"),
+            ("mkt_close", "double precision"),
             ("mkt_return_1d", "double precision"),
             ("mkt_log_return", "double precision"),
             ("mkt_mom_5", "double precision"),
@@ -306,12 +311,13 @@ def main() -> None:
         ]
         present_macro_fill_cols = [c for c in macro_fill_cols if c in feats.columns]
         if present_macro_fill_cols:
+            # forward fill only: a backward fill would copy later values into earlier
+            # days and break the causality of the feature map (Theorem 1)
             feats = feats.sort_values("date")
             feats[present_macro_fill_cols] = (
                 feats[present_macro_fill_cols]
                 .replace([np.inf, -np.inf], np.nan)
                 .ffill()
-                .bfill()
             )
 
         if feats.empty:

@@ -31,13 +31,13 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from dotenv import dotenv_values
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sklearn.tree import DecisionTreeClassifier, _tree
 from sklearn.metrics import roc_curve, roc_auc_score, precision_recall_curve
 
 # Reuse the SAME 56-feature pipeline as the production models (train_baseline),
 # so the rule tree operates on exactly the canonical 56-dimensional feature vector.
-from jobs.train_baseline import add_technical_features, build_feature_matrix
+from jobs.racc import block, build_pool
 
 SEED = 42
 END_DATE = os.environ.get("END_DATE", "2026-06-01")
@@ -53,63 +53,26 @@ SYMBOLS = ["AAPL", "TSLA", "MSFT", "GLD", "^GSPC", "^IXIC", "^DJI", "^RUT"]
 ROOT = Path(__file__).resolve().parents[1]
 FIG_DIR = Path(os.environ.get("FIG_DIR", "/tmp/figs"))
 
-# Columns read from features_daily (identical to the production inference path).
-_FEATURES_SQL = text("""
-    SELECT symbol, date,
-           open, high, low, close, volume,
-           return_1d, log_return,
-           sma_5, volatility_5, sma_10, volatility_10, sma_20, volatility_20,
-           return_lag_1, return_lag_2, return_lag_3, return_lag_4, return_lag_5,
-           mkt_return_1d, mkt_log_return, mkt_mom_5, mkt_mom_10, mkt_mom_20, mkt_vol_20,
-           vix_level, vix_return_1d, vix_change_1d,
-           irx_level, irx_change_1d,
-           tnx_level, tnx_change_1d
-    FROM features_daily
-    WHERE symbol = :s
-    ORDER BY date ASC
-""")
-
-
 def get_engine():
     cfg = dotenv_values(ROOT / ".env")
     url = os.environ.get("DATABASE_URL") or cfg.get("DATABASE_URL")
     return create_engine(url, pool_pre_ping=True)
 
 
-def load_symbol(engine, sym: str) -> pd.DataFrame:
-    df = pd.read_sql(_FEATURES_SQL, engine, params={"s": sym}, parse_dates=["date"])
-    df = df[df["date"] <= pd.to_datetime(END_DATE)].reset_index(drop=True)
-    return df
-
-
 def build_dataset(engine) -> tuple[pd.DataFrame, list[str]]:
-    """Builds a pooled dataset from the 8 instruments using the canonical
-    56-feature matrix (build_feature_matrix) plus a 3-class target."""
-    frames = []
-    feat_cols = None
-    for s in SYMBOLS:
-        df = load_symbol(engine, s)
-        if len(df) < 300:
-            continue
-        df = add_technical_features(df)
-        df, cols = build_feature_matrix(df)   # canonical 56 features
-        if df.empty:
-            continue
-        # 5-day forward return (target source; dropped from the feature set)
-        df["ret_fwd"] = df["close"].shift(-HORIZON) / df["close"] - 1.0
-        df = df.dropna(subset=["ret_fwd"]).reset_index(drop=True)
-        if feat_cols is None:
-            feat_cols = cols
-        frames.append(df)
-    data = pd.concat(frames, ignore_index=True)
-    # 3-class target
-    def lab(r):
-        if r > TAU: return "a1"
-        if r < -TAU: return "a3"
-        return "a2"
-    data["target"] = data["ret_fwd"].apply(lab)
+    """Pooled dataset of the 8 instruments on the canonical 56 features (the loader
+    of jobs/racc.py) with the 3-class target of the rules."""
+    data, feat_cols = build_pool(engine)
+    data["ret_fwd"] = data["target_return_kd"]
+    data["target"] = data["cls3"].map({0: "a1", 1: "a2", 2: "a3"})
     return data, feat_cols
 
+
+def fmt_threshold(v):
+    """A rule threshold with six significant digits in positional notation (no exponent).
+    With fewer digits, rows close to a threshold of a small-scale feature (e.g. atrp_14
+    around 0.008) would fall into another rule."""
+    return np.format_float_positional(float(v), precision=6, unique=False, fractional=False, trim="-")
 
 def tree_to_rules(tree: DecisionTreeClassifier, feat_names: list[str]) -> list[dict]:
     """Extracts rules from the tree paths (root -> leaf)."""
@@ -153,8 +116,9 @@ def main():
 
     # Chronological split: the tree (and therefore the knowledge base) is fit on
     # the training block only; the later block is held out for the ROC/PR figures.
-    train = data[data["date"] <= pd.to_datetime(TRAIN_END)].reset_index(drop=True)
-    test = data[data["date"] > pd.to_datetime(TRAIN_END)].reset_index(drop=True)
+    # the training block is purged: rows whose 5-day label ends after TRAIN_END are dropped
+    train = block(data, upto=TRAIN_END).reset_index(drop=True)
+    test = block(data, after=TRAIN_END, purge=False).reset_index(drop=True)
     X = train[feat_cols].values
     y = train["target"].values
     print(f" Dataset: {len(data)} rows ({len(feat_cols)} features); "
@@ -178,7 +142,7 @@ def main():
     print(f" Held-out rule-system ROC AUC (Buy vs rest): {test_auc:.3f} on {len(test)} samples")
 
     FIG_DIR.mkdir(parents=True, exist_ok=True)
-    # Fig 8: ROC
+    # Fig. 13: ROC
     fpr, tpr, _ = roc_curve(y_buy, p_buy)
     plt.figure(figsize=(5.2, 5.0))
     plt.plot(fpr, tpr, color="#d62728", lw=2.0,
@@ -187,12 +151,11 @@ def main():
     plt.plot([0, 1], [0, 1], "--", color="gray", lw=1.0, label="Random (AUC = 0.5)")
     plt.xlabel("False-Positive Rate (1 − Specificity)")
     plt.ylabel("True-Positive Rate (Sensitivity)")
-    plt.title("Fig. 8. ROC curve of the production-rule decision system")
     plt.legend(loc="lower right", fontsize=8)
     plt.tight_layout()
-    plt.savefig(FIG_DIR / "fig8_roc_rules.png", dpi=150, facecolor="#f7f8fa")
+    plt.savefig(FIG_DIR / "fig13_roc_rules.png", dpi=int(os.environ.get("FIG_DPI", "300")), facecolor="#f7f8fa")
     plt.close()
-    # Fig 9: Precision-Recall
+    # Fig. 14: precision-recall
     prec, rec, _ = precision_recall_curve(y_buy, p_buy)
     base = y_buy.mean()
     plt.figure(figsize=(5.2, 5.0))
@@ -202,12 +165,11 @@ def main():
                 label=f"Random precision (≈ {base:.2f})")
     plt.xlabel("Recall")
     plt.ylabel("Precision")
-    plt.title("Fig. 9. Precision–Recall curve of the production-rule decision system")
     plt.legend(loc="lower left", fontsize=8)
     plt.tight_layout()
-    plt.savefig(FIG_DIR / "fig9_pr_rules.png", dpi=150, facecolor="#f7f8fa")
+    plt.savefig(FIG_DIR / "fig14_pr_rules.png", dpi=int(os.environ.get("FIG_DPI", "300")), facecolor="#f7f8fa")
     plt.close()
-    print(f" Saved figures -> {FIG_DIR}/fig8_roc_rules.png, fig9_pr_rules.png")
+    print(f" Saved figures -> {FIG_DIR}/fig13_roc_rules.png, fig14_pr_rules.png")
 
     rules_raw = tree_to_rules(clf, feat_cols)
     print(f" Extracted rules (= number of leaves): {len(rules_raw)}")
@@ -226,20 +188,21 @@ def main():
             else:  # "<="
                 hi = thr if hi is None else min(hi, thr)
             bounds[nm] = [lo, hi]
+        fmt = fmt_threshold
         parts = []
         for nm in sorted(bounds):
             lo, hi = bounds[nm]
             if lo is not None and hi is not None:
-                parts.append(f"{lo:.3f} < {nm} ≤ {hi:.3f}")
+                parts.append(f"{fmt(lo)} < {nm} ≤ {fmt(hi)}")
             elif lo is not None:
-                parts.append(f"{nm} > {lo:.3f}")
+                parts.append(f"{nm} > {fmt(lo)}")
             else:
-                parts.append(f"{nm} ≤ {hi:.3f}")
-        return parts, sorted(bounds.keys())
+                parts.append(f"{nm} ≤ {fmt(hi)}")
+        return parts, sorted(bounds.keys()), bounds
 
     rules = []
     for k, r in enumerate(rules_raw, 1):
-        parts, ante_names = simplify_conditions(r["conditions"])
+        parts, ante_names, bounds = simplify_conditions(r["conditions"])
         ante = sorted({fidx[nm] for nm in ante_names})
         cond = " ∧ ".join(parts)
         rules.append({
@@ -248,9 +211,31 @@ def main():
             "ante": ante,
             "cons": r["consequent"],
             "condition": cond,
+            # exact interval of every feature (lower, upper; None = unbounded): lower < f <= upper
+            "bounds": {nm: [float(lo) if lo is not None else None, float(hi) if hi is not None else None]
+                       for nm, (lo, hi) in bounds.items()},
             "support": r["support"],
             "purity": r["purity"],
         })
+
+    # The published rules must reproduce the tree: with the printed (rounded)
+    # thresholds every training row has to fire exactly the rule of its own leaf.
+    fpos = {nm: i for i, nm in enumerate(feat_cols)}
+    leaf_nodes = [i for i in range(clf.tree_.node_count) if clf.tree_.children_left[i] == -1]
+    own = np.searchsorted(leaf_nodes, clf.apply(X))
+    fired = np.zeros((len(X), len(rules)), dtype=bool)
+    for j, r in enumerate(rules):
+        m = np.ones(len(X), dtype=bool)
+        for nm, (lo, hi) in r["bounds"].items():
+            col = X[:, fpos[nm]]
+            if lo is not None:
+                m &= col > float(fmt_threshold(lo))
+            if hi is not None:
+                m &= col <= float(fmt_threshold(hi))
+        fired[:, j] = m
+    assert (fired.sum(axis=1) == 1).all(), "the published rules do not partition the training data"
+    assert fired[np.arange(len(X)), own].all(), "a published rule disagrees with the tree"
+    print(f" Check: all {len(X)} training rows fire exactly the rule of their own leaf")
 
     EVENTS = {"a1": "Strong Bullish", "a2": "Consider / neutral", "a3": "Bearish"}
     out = {

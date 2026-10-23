@@ -1,4 +1,7 @@
 """
+SUPERSEDED by jobs/train_deep_baselines.py, which trains the LSTM, GRU and
+Transformer baselines reported in the paper under one protocol. Kept for the record.
+
 LSTM baseline for direction forecasting.
 ================================================================
 

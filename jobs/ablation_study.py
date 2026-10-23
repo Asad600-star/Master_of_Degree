@@ -328,7 +328,7 @@ def run_ablation_for_symbol(engine, symbol: str) -> list[AblationRow]:
 
     while i <= last_start:
         tr = df.iloc[:i].copy()
-        va = df.iloc[i : i + WF_VAL_DAYS].copy()
+        # the validation block is skipped, as in the walk-forward protocol of train_baseline
         te = df.iloc[i + WF_VAL_DAYS : i + WF_VAL_DAYS + WF_TEST_DAYS].copy()
 
         # Targets computed within each split (no cross-split leakage).
@@ -344,11 +344,13 @@ def run_ablation_for_symbol(engine, symbol: str) -> list[AblationRow]:
 
         # Train a model for each ablation scenario
         for scenario in ABLATION_SCENARIOS:
-            feature_cols = get_features_for_scenario(scenario)
-            # Only the columns that actually exist
-            feature_cols = [c for c in feature_cols if c in df.columns]
-            X_tr = tr[feature_cols].values.astype(np.float32)
-            X_te = te[feature_cols].values.astype(np.float32)
+            # columns in the canonical order of build_feature_matrix: the random splits of
+            # ExtraTrees depend on the column order, and with the same order the full scenario
+            # reproduces the EXTRATREES model of the walk-forward run (Table 6) exactly
+            wanted = set(get_features_for_scenario(scenario))
+            feature_cols = [c for c in _canon if c in wanted]
+            X_tr = tr[feature_cols].values
+            X_te = te[feature_cols].values
 
             model = ExtraTreesRegressor(
                 n_estimators=500,
@@ -386,7 +388,7 @@ def main() -> None:
     print("=" * 70)
     print(" ABLATION STUDY — which feature groups are needed?")
     print("=" * 70)
-    print(f" Model:     ExtraTrees (main volatility regressor)")
+    print(" Model:     ExtraTrees (main volatility regressor)")
     print(f" Horizon:   k = {HORIZON_DAYS}")
     print(f" Seed:      {SEED}")
     print(f" END_DATE:  {END_DATE}")

@@ -1,14 +1,14 @@
 {
-  "generated_at": "2026-06-23T17:41:14.930730",
+  "generated_at": "2026-10-22T15:27:29.875958",
   "method": "decision-tree path extraction (CART)",
   "seed": 42,
   "tree_max_depth": 7,
   "tree_min_samples_leaf": 80,
-  "train_accuracy": 0.519,
+  "train_accuracy": 0.514,
   "train_end": "2023-12-31",
-  "test_size": 4792,
-  "test_roc_auc": 0.536,
-  "total_rules": 69,
+  "test_size": 4796,
+  "test_roc_auc": 0.563,
+  "total_rules": 66,
   "features_count": 56,
   "events": {
     "a1": "Strong Bullish",
@@ -31,7 +31,25 @@
         49
       ],
       "cons": "a2",
-      "condition": "atrp_14 ≤ 0.008 ∧ corr_mkt_60 ≤ 0.900 ∧ irx_level ≤ 1.213 ∧ volatility_20 ≤ 0.006",
+      "condition": "atrp_14 ≤ 0.00751953 ∧ corr_mkt_60 ≤ 0.900145 ∧ irx_level ≤ 1.213 ∧ volatility_20 ≤ 0.00555046",
+      "bounds": {
+        "atrp_14": [
+          null,
+          0.0075195301324129105
+        ],
+        "irx_level": [
+          null,
+          1.2129999995231628
+        ],
+        "volatility_20": [
+          null,
+          0.005550464615225792
+        ],
+        "corr_mkt_60": [
+          null,
+          0.9001451134681702
+        ]
+      },
       "support": 143,
       "purity": 0.622
     },
@@ -52,7 +70,29 @@
         49
       ],
       "cons": "a2",
-      "condition": "atrp_14 ≤ 0.008 ∧ bb_width_20 ≤ 0.009 ∧ corr_mkt_60 > 0.900 ∧ irx_level ≤ 1.213 ∧ volatility_20 ≤ 0.006",
+      "condition": "atrp_14 ≤ 0.00751953 ∧ bb_width_20 ≤ 0.00872584 ∧ corr_mkt_60 > 0.900145 ∧ irx_level ≤ 1.213 ∧ volatility_20 ≤ 0.00555046",
+      "bounds": {
+        "atrp_14": [
+          null,
+          0.0075195301324129105
+        ],
+        "irx_level": [
+          null,
+          1.2129999995231628
+        ],
+        "volatility_20": [
+          null,
+          0.005550464615225792
+        ],
+        "corr_mkt_60": [
+          0.9001451134681702,
+          null
+        ],
+        "bb_width_20": [
+          null,
+          0.008725837804377079
+        ]
+      },
       "support": 100,
       "purity": 0.58
     },
@@ -75,7 +115,33 @@
         49
       ],
       "cons": "a2",
-      "condition": "atrp_14 ≤ 0.008 ∧ bb_width_20 > 0.009 ∧ corr_mkt_60 > 0.900 ∧ irx_level ≤ 1.213 ∧ ret_std_20 ≤ 0.004 ∧ volatility_20 ≤ 0.006",
+      "condition": "atrp_14 ≤ 0.00751953 ∧ bb_width_20 > 0.00872584 ∧ corr_mkt_60 > 0.900145 ∧ irx_level ≤ 1.213 ∧ ret_std_20 ≤ 0.00415123 ∧ volatility_20 ≤ 0.00555046",
+      "bounds": {
+        "atrp_14": [
+          null,
+          0.0075195301324129105
+        ],
+        "irx_level": [
+          null,
+          1.2129999995231628
+        ],
+        "volatility_20": [
+          null,
+          0.005550464615225792
+        ],
+        "corr_mkt_60": [
+          0.9001451134681702,
+          null
+        ],
+        "bb_width_20": [
+          0.008725837804377079,
+          null
+        ],
+        "ret_std_20": [
+          null,
+          0.0041512304451316595
+        ]
+      },
       "support": 169,
       "purity": 0.757
     },
@@ -98,7 +164,33 @@
         49
       ],
       "cons": "a2",
-      "condition": "atrp_14 ≤ 0.008 ∧ bb_width_20 > 0.009 ∧ corr_mkt_60 > 0.900 ∧ irx_level ≤ 1.213 ∧ ret_std_20 > 0.004 ∧ volatility_20 ≤ 0.006",
+      "condition": "atrp_14 ≤ 0.00751953 ∧ bb_width_20 > 0.00872584 ∧ corr_mkt_60 > 0.900145 ∧ irx_level ≤ 1.213 ∧ ret_std_20 > 0.00415123 ∧ volatility_20 ≤ 0.00555046",
+      "bounds": {
+        "atrp_14": [
+          null,
+          0.0075195301324129105
+        ],
+        "irx_level": [
+          null,
+          1.2129999995231628
+        ],
+        "volatility_20": [
+          null,
+          0.005550464615225792
+        ],
+        "corr_mkt_60": [
+          0.9001451134681702,
+          null
+        ],
+        "bb_width_20": [
+          0.008725837804377079,
+          null
+        ],
+        "ret_std_20": [
+          0.0041512304451316595,
+          null
+        ]
+      },
       "support": 232,
       "purity": 0.871
     },
@@ -115,7 +207,21 @@
         45
       ],
       "cons": "a1",
-      "condition": "atrp_14 ≤ 0.008 ∧ irx_level ≤ 1.213 ∧ volatility_20 > 0.006",
+      "condition": "atrp_14 ≤ 0.00751953 ∧ irx_level ≤ 1.213 ∧ volatility_20 > 0.00555046",
+      "bounds": {
+        "atrp_14": [
+          null,
+          0.0075195301324129105
+        ],
+        "irx_level": [
+          null,
+          1.2129999995231628
+        ],
+        "volatility_20": [
+          0.005550464615225792,
+          null
+        ]
+      },
       "support": 82,
       "purity": 0.439
     },
@@ -132,7 +238,21 @@
         45
       ],
       "cons": "a1",
-      "condition": "atrp_14 ≤ 0.008 ∧ 1.213 < irx_level ≤ 1.539 ∧ macd_hist ≤ 0.608",
+      "condition": "atrp_14 ≤ 0.00751953 ∧ 1.213 < irx_level ≤ 1.539 ∧ macd_hist ≤ 0.60824",
+      "bounds": {
+        "atrp_14": [
+          null,
+          0.0075195301324129105
+        ],
+        "irx_level": [
+          1.2129999995231628,
+          1.5389999747276306
+        ],
+        "macd_hist": [
+          null,
+          0.6082404553890228
+        ]
+      },
       "support": 105,
       "purity": 0.714
     },
@@ -149,7 +269,21 @@
         45
       ],
       "cons": "a2",
-      "condition": "atrp_14 ≤ 0.008 ∧ 1.213 < irx_level ≤ 1.539 ∧ macd_hist > 0.608",
+      "condition": "atrp_14 ≤ 0.00751953 ∧ 1.213 < irx_level ≤ 1.539 ∧ macd_hist > 0.60824",
+      "bounds": {
+        "atrp_14": [
+          null,
+          0.0075195301324129105
+        ],
+        "irx_level": [
+          1.2129999995231628,
+          1.5389999747276306
+        ],
+        "macd_hist": [
+          0.6082404553890228,
+          null
+        ]
+      },
       "support": 158,
       "purity": 0.538
     },
@@ -166,7 +300,21 @@
         45
       ],
       "cons": "a3",
-      "condition": "atrp_14 ≤ 0.008 ∧ bb_width_20 ≤ 0.015 ∧ irx_level > 1.539",
+      "condition": "atrp_14 ≤ 0.00751953 ∧ bb_width_20 ≤ 0.0153797 ∧ irx_level > 1.539",
+      "bounds": {
+        "atrp_14": [
+          null,
+          0.0075195301324129105
+        ],
+        "irx_level": [
+          1.5389999747276306,
+          null
+        ],
+        "bb_width_20": [
+          null,
+          0.015379679389297962
+        ]
+      },
       "support": 107,
       "purity": 0.383
     },
@@ -183,7 +331,21 @@
         45
       ],
       "cons": "a2",
-      "condition": "atrp_14 ≤ 0.008 ∧ bb_width_20 > 0.015 ∧ 1.539 < irx_level ≤ 2.066",
+      "condition": "atrp_14 ≤ 0.00751953 ∧ bb_width_20 > 0.0153797 ∧ 1.539 < irx_level ≤ 2.0655",
+      "bounds": {
+        "atrp_14": [
+          null,
+          0.0075195301324129105
+        ],
+        "irx_level": [
+          1.5389999747276306,
+          2.065500020980835
+        ],
+        "bb_width_20": [
+          0.015379679389297962,
+          null
+        ]
+      },
       "support": 80,
       "purity": 0.613
     },
@@ -200,9 +362,23 @@
         45
       ],
       "cons": "a2",
-      "condition": "atrp_14 ≤ 0.008 ∧ bb_width_20 > 0.015 ∧ irx_level > 2.066",
-      "support": 138,
-      "purity": 0.696
+      "condition": "atrp_14 ≤ 0.00751953 ∧ bb_width_20 > 0.0153797 ∧ irx_level > 2.0655",
+      "bounds": {
+        "atrp_14": [
+          null,
+          0.0075195301324129105
+        ],
+        "irx_level": [
+          2.065500020980835,
+          null
+        ],
+        "bb_width_20": [
+          0.015379679389297962,
+          null
+        ]
+      },
+      "support": 135,
+      "purity": 0.689
     },
     {
       "id": "p11",
@@ -219,7 +395,25 @@
         49
       ],
       "cons": "a2",
-      "condition": "0.008 < atrp_14 ≤ 0.011 ∧ corr_mkt_60 ≤ -0.298 ∧ macd ≤ -0.120 ∧ macd_hist ≤ 0.963",
+      "condition": "0.00751953 < atrp_14 ≤ 0.0114604 ∧ corr_mkt_60 ≤ -0.298218 ∧ macd ≤ -0.119516 ∧ macd_hist ≤ 0.962525",
+      "bounds": {
+        "atrp_14": [
+          0.0075195301324129105,
+          0.01146042114123702
+        ],
+        "macd_hist": [
+          null,
+          0.9625247418880463
+        ],
+        "corr_mkt_60": [
+          null,
+          -0.29821765422821045
+        ],
+        "macd": [
+          null,
+          -0.11951552703976631
+        ]
+      },
       "support": 105,
       "purity": 0.695
     },
@@ -238,7 +432,25 @@
         49
       ],
       "cons": "a3",
-      "condition": "0.008 < atrp_14 ≤ 0.011 ∧ corr_mkt_60 ≤ -0.298 ∧ macd > -0.120 ∧ macd_hist ≤ 0.963",
+      "condition": "0.00751953 < atrp_14 ≤ 0.0114604 ∧ corr_mkt_60 ≤ -0.298218 ∧ macd > -0.119516 ∧ macd_hist ≤ 0.962525",
+      "bounds": {
+        "atrp_14": [
+          0.0075195301324129105,
+          0.01146042114123702
+        ],
+        "macd_hist": [
+          null,
+          0.9625247418880463
+        ],
+        "corr_mkt_60": [
+          null,
+          -0.29821765422821045
+        ],
+        "macd": [
+          -0.11951552703976631,
+          null
+        ]
+      },
       "support": 101,
       "purity": 0.495
     },
@@ -261,7 +473,33 @@
         53
       ],
       "cons": "a2",
-      "condition": "0.008 < atrp_14 ≤ 0.011 ∧ corr_mkt_60 > -0.298 ∧ irx_level ≤ 0.341 ∧ macd_hist ≤ 0.963 ∧ mkt_mom_5 ≤ -0.004 ∧ vix_log ≤ 2.692",
+      "condition": "0.00751953 < atrp_14 ≤ 0.0114604 ∧ corr_mkt_60 > -0.298218 ∧ irx_level ≤ 0.3415 ∧ macd_hist ≤ 0.962525 ∧ mkt_mom_5 ≤ -0.00435123 ∧ vix_log ≤ 2.69225",
+      "bounds": {
+        "atrp_14": [
+          0.0075195301324129105,
+          0.01146042114123702
+        ],
+        "macd_hist": [
+          null,
+          0.9625247418880463
+        ],
+        "corr_mkt_60": [
+          -0.29821765422821045,
+          null
+        ],
+        "irx_level": [
+          null,
+          0.341499999165535
+        ],
+        "vix_log": [
+          null,
+          2.692254900932312
+        ],
+        "mkt_mom_5": [
+          null,
+          -0.004351228708401322
+        ]
+      },
       "support": 82,
       "purity": 0.756
     },
@@ -284,7 +522,33 @@
         53
       ],
       "cons": "a2",
-      "condition": "0.008 < atrp_14 ≤ 0.011 ∧ corr_mkt_60 > -0.298 ∧ irx_level ≤ 0.341 ∧ macd_hist ≤ 0.963 ∧ mkt_mom_5 > -0.004 ∧ vix_log ≤ 2.692",
+      "condition": "0.00751953 < atrp_14 ≤ 0.0114604 ∧ corr_mkt_60 > -0.298218 ∧ irx_level ≤ 0.3415 ∧ macd_hist ≤ 0.962525 ∧ mkt_mom_5 > -0.00435123 ∧ vix_log ≤ 2.69225",
+      "bounds": {
+        "atrp_14": [
+          0.0075195301324129105,
+          0.01146042114123702
+        ],
+        "macd_hist": [
+          null,
+          0.9625247418880463
+        ],
+        "corr_mkt_60": [
+          -0.29821765422821045,
+          null
+        ],
+        "irx_level": [
+          null,
+          0.341499999165535
+        ],
+        "vix_log": [
+          null,
+          2.692254900932312
+        ],
+        "mkt_mom_5": [
+          -0.004351228708401322,
+          null
+        ]
+      },
       "support": 282,
       "purity": 0.457
     },
@@ -307,7 +571,33 @@
         53
       ],
       "cons": "a2",
-      "condition": "0.008 < atrp_14 ≤ 0.011 ∧ corr_mkt_60 > -0.298 ∧ irx_level ≤ 0.341 ∧ macd_hist ≤ 0.963 ∧ vix_level ≤ 21.945 ∧ vix_log > 2.692",
+      "condition": "0.00751953 < atrp_14 ≤ 0.0114604 ∧ corr_mkt_60 > -0.298218 ∧ irx_level ≤ 0.3415 ∧ macd_hist ≤ 0.962525 ∧ vix_level ≤ 21.945 ∧ vix_log > 2.69225",
+      "bounds": {
+        "atrp_14": [
+          0.0075195301324129105,
+          0.01146042114123702
+        ],
+        "macd_hist": [
+          null,
+          0.9625247418880463
+        ],
+        "corr_mkt_60": [
+          -0.29821765422821045,
+          null
+        ],
+        "irx_level": [
+          null,
+          0.341499999165535
+        ],
+        "vix_log": [
+          2.692254900932312,
+          null
+        ],
+        "vix_level": [
+          null,
+          21.94499969482422
+        ]
+      },
       "support": 625,
       "purity": 0.469
     },
@@ -330,7 +620,33 @@
         53
       ],
       "cons": "a1",
-      "condition": "0.008 < atrp_14 ≤ 0.011 ∧ corr_mkt_60 > -0.298 ∧ irx_level ≤ 0.341 ∧ macd_hist ≤ 0.963 ∧ vix_level > 21.945 ∧ vix_log > 2.692",
+      "condition": "0.00751953 < atrp_14 ≤ 0.0114604 ∧ corr_mkt_60 > -0.298218 ∧ irx_level ≤ 0.3415 ∧ macd_hist ≤ 0.962525 ∧ vix_level > 21.945 ∧ vix_log > 2.69225",
+      "bounds": {
+        "atrp_14": [
+          0.0075195301324129105,
+          0.01146042114123702
+        ],
+        "macd_hist": [
+          null,
+          0.9625247418880463
+        ],
+        "corr_mkt_60": [
+          -0.29821765422821045,
+          null
+        ],
+        "irx_level": [
+          null,
+          0.341499999165535
+        ],
+        "vix_log": [
+          2.692254900932312,
+          null
+        ],
+        "vix_level": [
+          21.94499969482422,
+          null
+        ]
+      },
       "support": 149,
       "purity": 0.503
     },
@@ -353,9 +669,35 @@
         49
       ],
       "cons": "a1",
-      "condition": "0.008 < atrp_14 ≤ 0.011 ∧ corr_mkt_60 > -0.298 ∧ irx_level > 0.341 ∧ macd_hist ≤ 0.963 ∧ macd_signal ≤ -0.577 ∧ tnx_level ≤ 2.852",
-      "support": 94,
-      "purity": 0.766
+      "condition": "0.00751953 < atrp_14 ≤ 0.0114604 ∧ corr_mkt_60 > -0.298218 ∧ irx_level > 0.3415 ∧ macd_hist ≤ 0.962525 ∧ macd_signal ≤ -0.30686 ∧ tnx_level ≤ 2.4915",
+      "bounds": {
+        "atrp_14": [
+          0.0075195301324129105,
+          0.01146042114123702
+        ],
+        "macd_hist": [
+          null,
+          0.9625247418880463
+        ],
+        "corr_mkt_60": [
+          -0.29821765422821045,
+          null
+        ],
+        "irx_level": [
+          0.341499999165535,
+          null
+        ],
+        "tnx_level": [
+          null,
+          2.4915000200271606
+        ],
+        "macd_signal": [
+          null,
+          -0.3068598359823227
+        ]
+      },
+      "support": 85,
+      "purity": 0.718
     },
     {
       "id": "p18",
@@ -376,20 +718,48 @@
         49
       ],
       "cons": "a1",
-      "condition": "0.008 < atrp_14 ≤ 0.011 ∧ corr_mkt_60 > -0.298 ∧ irx_level > 0.341 ∧ macd_hist ≤ 0.963 ∧ macd_signal > -0.577 ∧ tnx_level ≤ 2.852",
-      "support": 886,
-      "purity": 0.404
+      "condition": "0.00751953 < atrp_14 ≤ 0.0114604 ∧ corr_mkt_60 > -0.298218 ∧ irx_level > 0.3415 ∧ macd_hist ≤ 0.962525 ∧ macd_signal > -0.30686 ∧ tnx_level ≤ 2.4915",
+      "bounds": {
+        "atrp_14": [
+          0.0075195301324129105,
+          0.01146042114123702
+        ],
+        "macd_hist": [
+          null,
+          0.9625247418880463
+        ],
+        "corr_mkt_60": [
+          -0.29821765422821045,
+          null
+        ],
+        "irx_level": [
+          0.341499999165535,
+          null
+        ],
+        "tnx_level": [
+          null,
+          2.4915000200271606
+        ],
+        "macd_signal": [
+          -0.3068598359823227,
+          null
+        ]
+      },
+      "support": 625,
+      "purity": 0.43
     },
     {
       "id": "p19",
       "antecedent_features": [
         "atrp_14",
         "corr_mkt_60",
+        "ema_12",
         "irx_level",
         "macd_hist",
         "tnx_level"
       ],
       "ante": [
+        25,
         29,
         32,
         45,
@@ -397,30 +767,84 @@
         49
       ],
       "cons": "a2",
-      "condition": "0.008 < atrp_14 ≤ 0.011 ∧ corr_mkt_60 > -0.298 ∧ irx_level > 0.341 ∧ macd_hist ≤ 0.963 ∧ 2.852 < tnx_level ≤ 3.595",
-      "support": 327,
-      "purity": 0.523
+      "condition": "0.00751953 < atrp_14 ≤ 0.0114604 ∧ corr_mkt_60 > -0.298218 ∧ ema_12 ≤ 126.78 ∧ irx_level > 0.3415 ∧ macd_hist ≤ 0.962525 ∧ tnx_level > 2.4915",
+      "bounds": {
+        "atrp_14": [
+          0.0075195301324129105,
+          0.01146042114123702
+        ],
+        "macd_hist": [
+          null,
+          0.9625247418880463
+        ],
+        "corr_mkt_60": [
+          -0.29821765422821045,
+          null
+        ],
+        "irx_level": [
+          0.341499999165535,
+          null
+        ],
+        "tnx_level": [
+          2.4915000200271606,
+          null
+        ],
+        "ema_12": [
+          null,
+          126.78004455566406
+        ]
+      },
+      "support": 200,
+      "purity": 0.62
     },
     {
       "id": "p20",
       "antecedent_features": [
         "atrp_14",
         "corr_mkt_60",
+        "ema_12",
         "irx_level",
         "macd_hist",
         "tnx_level"
       ],
       "ante": [
+        25,
         29,
         32,
         45,
         47,
         49
       ],
-      "cons": "a1",
-      "condition": "0.008 < atrp_14 ≤ 0.011 ∧ corr_mkt_60 > -0.298 ∧ irx_level > 0.341 ∧ macd_hist ≤ 0.963 ∧ tnx_level > 3.595",
-      "support": 254,
-      "purity": 0.413
+      "cons": "a2",
+      "condition": "0.00751953 < atrp_14 ≤ 0.0114604 ∧ corr_mkt_60 > -0.298218 ∧ ema_12 > 126.78 ∧ irx_level > 0.3415 ∧ macd_hist ≤ 0.962525 ∧ tnx_level > 2.4915",
+      "bounds": {
+        "atrp_14": [
+          0.0075195301324129105,
+          0.01146042114123702
+        ],
+        "macd_hist": [
+          null,
+          0.9625247418880463
+        ],
+        "corr_mkt_60": [
+          -0.29821765422821045,
+          null
+        ],
+        "irx_level": [
+          0.341499999165535,
+          null
+        ],
+        "tnx_level": [
+          2.4915000200271606,
+          null
+        ],
+        "ema_12": [
+          126.78004455566406,
+          null
+        ]
+      },
+      "support": 645,
+      "purity": 0.36
     },
     {
       "id": "p21",
@@ -441,9 +865,35 @@
         56
       ],
       "cons": "a2",
-      "condition": "0.008 < atrp_14 ≤ 0.011 ∧ irx_change_1d ≤ 0.003 ∧ macd_hist > 0.963 ∧ vix_z_60 ≤ 0.182 ∧ volatility_10 ≤ 0.005 ∧ yc_slope ≤ 2.133",
-      "support": 149,
-      "purity": 0.678
+      "condition": "0.00751953 < atrp_14 ≤ 0.0114604 ∧ irx_change_1d ≤ 0.00299989 ∧ macd_hist > 0.962525 ∧ vix_z_60 ≤ 0.182307 ∧ volatility_10 ≤ 0.00453254 ∧ yc_slope ≤ 2.1325",
+      "bounds": {
+        "atrp_14": [
+          0.0075195301324129105,
+          0.01146042114123702
+        ],
+        "macd_hist": [
+          0.9625247418880463,
+          null
+        ],
+        "yc_slope": [
+          null,
+          2.1325000524520874
+        ],
+        "vix_z_60": [
+          null,
+          0.1823074296116829
+        ],
+        "irx_change_1d": [
+          null,
+          0.0029998868703842163
+        ],
+        "volatility_10": [
+          null,
+          0.004532544175162911
+        ]
+      },
+      "support": 121,
+      "purity": 0.694
     },
     {
       "id": "p22",
@@ -464,9 +914,35 @@
         56
       ],
       "cons": "a2",
-      "condition": "0.008 < atrp_14 ≤ 0.011 ∧ irx_change_1d ≤ 0.003 ∧ macd_hist > 0.963 ∧ vix_z_60 ≤ 0.182 ∧ volatility_10 > 0.005 ∧ yc_slope ≤ 2.133",
-      "support": 497,
-      "purity": 0.505
+      "condition": "0.00751953 < atrp_14 ≤ 0.0114604 ∧ irx_change_1d ≤ 0.00299989 ∧ macd_hist > 0.962525 ∧ vix_z_60 ≤ 0.182307 ∧ volatility_10 > 0.00453254 ∧ yc_slope ≤ 2.1325",
+      "bounds": {
+        "atrp_14": [
+          0.0075195301324129105,
+          0.01146042114123702
+        ],
+        "macd_hist": [
+          0.9625247418880463,
+          null
+        ],
+        "yc_slope": [
+          null,
+          2.1325000524520874
+        ],
+        "vix_z_60": [
+          null,
+          0.1823074296116829
+        ],
+        "irx_change_1d": [
+          null,
+          0.0029998868703842163
+        ],
+        "volatility_10": [
+          0.004532544175162911,
+          null
+        ]
+      },
+      "support": 516,
+      "purity": 0.514
     },
     {
       "id": "p23",
@@ -487,7 +963,33 @@
         56
       ],
       "cons": "a2",
-      "condition": "0.008 < atrp_14 ≤ 0.011 ∧ irx_change_1d > 0.003 ∧ macd_hist > 0.963 ∧ mkt_mom_10 ≤ 0.017 ∧ vix_z_60 ≤ 0.182 ∧ yc_slope ≤ 2.133",
+      "condition": "0.00751953 < atrp_14 ≤ 0.0114604 ∧ irx_change_1d > 0.00299989 ∧ macd_hist > 0.962525 ∧ mkt_mom_10 ≤ 0.0168979 ∧ vix_z_60 ≤ 0.182307 ∧ yc_slope ≤ 2.1325",
+      "bounds": {
+        "atrp_14": [
+          0.0075195301324129105,
+          0.01146042114123702
+        ],
+        "macd_hist": [
+          0.9625247418880463,
+          null
+        ],
+        "yc_slope": [
+          null,
+          2.1325000524520874
+        ],
+        "vix_z_60": [
+          null,
+          0.1823074296116829
+        ],
+        "irx_change_1d": [
+          0.0029998868703842163,
+          null
+        ],
+        "mkt_mom_10": [
+          null,
+          0.01689785998314619
+        ]
+      },
       "support": 133,
       "purity": 0.586
     },
@@ -510,9 +1012,35 @@
         56
       ],
       "cons": "a2",
-      "condition": "0.008 < atrp_14 ≤ 0.011 ∧ irx_change_1d > 0.003 ∧ macd_hist > 0.963 ∧ mkt_mom_10 > 0.017 ∧ vix_z_60 ≤ 0.182 ∧ yc_slope ≤ 2.133",
-      "support": 248,
-      "purity": 0.734
+      "condition": "0.00751953 < atrp_14 ≤ 0.0114604 ∧ irx_change_1d > 0.00299989 ∧ macd_hist > 0.962525 ∧ mkt_mom_10 > 0.0168979 ∧ vix_z_60 ≤ 0.182307 ∧ yc_slope ≤ 2.1325",
+      "bounds": {
+        "atrp_14": [
+          0.0075195301324129105,
+          0.01146042114123702
+        ],
+        "macd_hist": [
+          0.9625247418880463,
+          null
+        ],
+        "yc_slope": [
+          null,
+          2.1325000524520874
+        ],
+        "vix_z_60": [
+          null,
+          0.1823074296116829
+        ],
+        "irx_change_1d": [
+          0.0029998868703842163,
+          null
+        ],
+        "mkt_mom_10": [
+          0.01689785998314619,
+          null
+        ]
+      },
+      "support": 246,
+      "purity": 0.74
     },
     {
       "id": "p25",
@@ -529,7 +1057,25 @@
         56
       ],
       "cons": "a2",
-      "condition": "0.008 < atrp_14 ≤ 0.011 ∧ macd_hist > 0.963 ∧ vix_z_60 > 0.182 ∧ yc_slope ≤ 2.133",
+      "condition": "0.00751953 < atrp_14 ≤ 0.0114604 ∧ macd_hist > 0.962525 ∧ vix_z_60 > 0.182307 ∧ yc_slope ≤ 2.1325",
+      "bounds": {
+        "atrp_14": [
+          0.0075195301324129105,
+          0.01146042114123702
+        ],
+        "macd_hist": [
+          0.9625247418880463,
+          null
+        ],
+        "yc_slope": [
+          null,
+          2.1325000524520874
+        ],
+        "vix_z_60": [
+          0.1823074296116829,
+          null
+        ]
+      },
       "support": 135,
       "purity": 0.378
     },
@@ -546,7 +1092,21 @@
         56
       ],
       "cons": "a3",
-      "condition": "0.008 < atrp_14 ≤ 0.011 ∧ macd_hist > 0.963 ∧ yc_slope > 2.133",
+      "condition": "0.00751953 < atrp_14 ≤ 0.0114604 ∧ macd_hist > 0.962525 ∧ yc_slope > 2.1325",
+      "bounds": {
+        "atrp_14": [
+          0.0075195301324129105,
+          0.01146042114123702
+        ],
+        "macd_hist": [
+          0.9625247418880463,
+          null
+        ],
+        "yc_slope": [
+          2.1325000524520874,
+          null
+        ]
+      },
       "support": 96,
       "purity": 0.51
     },
@@ -569,7 +1129,33 @@
         56
       ],
       "cons": "a1",
-      "condition": "0.011 < atrp_14 ≤ 0.020 ∧ mkt_mom_5 ≤ 0.019 ∧ mkt_risk_20 ≤ 0.007 ∧ tnx_level ≤ 2.952 ∧ vix_z_60 ≤ -0.991 ∧ yc_slope ≤ 1.773",
+      "condition": "0.0114604 < atrp_14 ≤ 0.0197833 ∧ mkt_mom_5 ≤ 0.0186606 ∧ mkt_risk_20 ≤ 0.00723532 ∧ tnx_level ≤ 2.9515 ∧ vix_z_60 ≤ -0.991154 ∧ yc_slope ≤ 1.7735",
+      "bounds": {
+        "atrp_14": [
+          0.01146042114123702,
+          0.019783250987529755
+        ],
+        "vix_z_60": [
+          null,
+          -0.991154134273529
+        ],
+        "mkt_mom_5": [
+          null,
+          0.01866064313799143
+        ],
+        "yc_slope": [
+          null,
+          1.7734999060630798
+        ],
+        "tnx_level": [
+          null,
+          2.9515000581741333
+        ],
+        "mkt_risk_20": [
+          null,
+          0.00723531749099493
+        ]
+      },
       "support": 359,
       "purity": 0.398
     },
@@ -592,7 +1178,33 @@
         56
       ],
       "cons": "a1",
-      "condition": "0.011 < atrp_14 ≤ 0.020 ∧ mkt_mom_5 ≤ 0.019 ∧ mkt_risk_20 > 0.007 ∧ tnx_level ≤ 2.952 ∧ vix_z_60 ≤ -0.991 ∧ yc_slope ≤ 1.773",
+      "condition": "0.0114604 < atrp_14 ≤ 0.0197833 ∧ mkt_mom_5 ≤ 0.0186606 ∧ mkt_risk_20 > 0.00723532 ∧ tnx_level ≤ 2.9515 ∧ vix_z_60 ≤ -0.991154 ∧ yc_slope ≤ 1.7735",
+      "bounds": {
+        "atrp_14": [
+          0.01146042114123702,
+          0.019783250987529755
+        ],
+        "vix_z_60": [
+          null,
+          -0.991154134273529
+        ],
+        "mkt_mom_5": [
+          null,
+          0.01866064313799143
+        ],
+        "yc_slope": [
+          null,
+          1.7734999060630798
+        ],
+        "tnx_level": [
+          null,
+          2.9515000581741333
+        ],
+        "mkt_risk_20": [
+          0.00723531749099493,
+          null
+        ]
+      },
       "support": 328,
       "purity": 0.631
     },
@@ -615,9 +1227,35 @@
         56
       ],
       "cons": "a1",
-      "condition": "0.011 < atrp_14 ≤ 0.020 ∧ mkt_mom_5 ≤ 0.019 ∧ tnx_change_1d ≤ -0.002 ∧ tnx_level > 2.952 ∧ vix_z_60 ≤ -0.991 ∧ yc_slope ≤ 1.773",
-      "support": 146,
-      "purity": 0.5
+      "condition": "0.0114604 < atrp_14 ≤ 0.0197833 ∧ mkt_mom_5 ≤ 0.0186606 ∧ tnx_change_1d ≤ -0.00199997 ∧ tnx_level > 2.9515 ∧ vix_z_60 ≤ -0.991154 ∧ yc_slope ≤ 1.7735",
+      "bounds": {
+        "atrp_14": [
+          0.01146042114123702,
+          0.019783250987529755
+        ],
+        "vix_z_60": [
+          null,
+          -0.991154134273529
+        ],
+        "mkt_mom_5": [
+          null,
+          0.01866064313799143
+        ],
+        "yc_slope": [
+          null,
+          1.7734999060630798
+        ],
+        "tnx_level": [
+          2.9515000581741333,
+          null
+        ],
+        "tnx_change_1d": [
+          null,
+          -0.001999974250793457
+        ]
+      },
+      "support": 143,
+      "purity": 0.51
     },
     {
       "id": "p30",
@@ -638,7 +1276,33 @@
         56
       ],
       "cons": "a2",
-      "condition": "0.011 < atrp_14 ≤ 0.020 ∧ mkt_mom_5 ≤ 0.019 ∧ tnx_change_1d > -0.002 ∧ tnx_level > 2.952 ∧ vix_z_60 ≤ -0.991 ∧ yc_slope ≤ 1.773",
+      "condition": "0.0114604 < atrp_14 ≤ 0.0197833 ∧ mkt_mom_5 ≤ 0.0186606 ∧ tnx_change_1d > -0.00199997 ∧ tnx_level > 2.9515 ∧ vix_z_60 ≤ -0.991154 ∧ yc_slope ≤ 1.7735",
+      "bounds": {
+        "atrp_14": [
+          0.01146042114123702,
+          0.019783250987529755
+        ],
+        "vix_z_60": [
+          null,
+          -0.991154134273529
+        ],
+        "mkt_mom_5": [
+          null,
+          0.01866064313799143
+        ],
+        "yc_slope": [
+          null,
+          1.7734999060630798
+        ],
+        "tnx_level": [
+          2.9515000581741333,
+          null
+        ],
+        "tnx_change_1d": [
+          -0.001999974250793457,
+          null
+        ]
+      },
       "support": 212,
       "purity": 0.509
     },
@@ -657,7 +1321,25 @@
         56
       ],
       "cons": "a3",
-      "condition": "0.011 < atrp_14 ≤ 0.020 ∧ mkt_mom_5 ≤ 0.019 ∧ vix_z_60 ≤ -0.991 ∧ yc_slope > 1.773",
+      "condition": "0.0114604 < atrp_14 ≤ 0.0197833 ∧ mkt_mom_5 ≤ 0.0186606 ∧ vix_z_60 ≤ -0.991154 ∧ yc_slope > 1.7735",
+      "bounds": {
+        "atrp_14": [
+          0.01146042114123702,
+          0.019783250987529755
+        ],
+        "vix_z_60": [
+          null,
+          -0.991154134273529
+        ],
+        "mkt_mom_5": [
+          null,
+          0.01866064313799143
+        ],
+        "yc_slope": [
+          1.7734999060630798,
+          null
+        ]
+      },
       "support": 103,
       "purity": 0.408
     },
@@ -680,7 +1362,33 @@
         55
       ],
       "cons": "a2",
-      "condition": "0.011 < atrp_14 ≤ 0.020 ∧ beta_mkt_60 ≤ 1.252 ∧ mkt_mom_5 > 0.019 ∧ rsi_14 ≤ 69.007 ∧ vix_x_mktret ≤ -0.000 ∧ vix_z_60 ≤ -0.991",
+      "condition": "0.0114604 < atrp_14 ≤ 0.0197833 ∧ beta_mkt_60 ≤ 1.25245 ∧ mkt_mom_5 > 0.0186606 ∧ rsi_14 ≤ 69.0067 ∧ vix_x_mktret ≤ -0.0000134922 ∧ vix_z_60 ≤ -0.991154",
+      "bounds": {
+        "atrp_14": [
+          0.01146042114123702,
+          0.019783250987529755
+        ],
+        "vix_z_60": [
+          null,
+          -0.991154134273529
+        ],
+        "mkt_mom_5": [
+          0.01866064313799143,
+          null
+        ],
+        "beta_mkt_60": [
+          null,
+          1.2524486184120178
+        ],
+        "rsi_14": [
+          null,
+          69.00670623779297
+        ],
+        "vix_x_mktret": [
+          null,
+          -1.3492198831954738e-05
+        ]
+      },
       "support": 237,
       "purity": 0.608
     },
@@ -703,7 +1411,33 @@
         55
       ],
       "cons": "a1",
-      "condition": "0.011 < atrp_14 ≤ 0.020 ∧ beta_mkt_60 ≤ 1.252 ∧ mkt_mom_5 > 0.019 ∧ rsi_14 ≤ 69.007 ∧ vix_x_mktret > -0.000 ∧ vix_z_60 ≤ -0.991",
+      "condition": "0.0114604 < atrp_14 ≤ 0.0197833 ∧ beta_mkt_60 ≤ 1.25245 ∧ mkt_mom_5 > 0.0186606 ∧ rsi_14 ≤ 69.0067 ∧ vix_x_mktret > -0.0000134922 ∧ vix_z_60 ≤ -0.991154",
+      "bounds": {
+        "atrp_14": [
+          0.01146042114123702,
+          0.019783250987529755
+        ],
+        "vix_z_60": [
+          null,
+          -0.991154134273529
+        ],
+        "mkt_mom_5": [
+          0.01866064313799143,
+          null
+        ],
+        "beta_mkt_60": [
+          null,
+          1.2524486184120178
+        ],
+        "rsi_14": [
+          null,
+          69.00670623779297
+        ],
+        "vix_x_mktret": [
+          -1.3492198831954738e-05,
+          null
+        ]
+      },
       "support": 98,
       "purity": 0.459
     },
@@ -724,7 +1458,29 @@
         54
       ],
       "cons": "a3",
-      "condition": "0.011 < atrp_14 ≤ 0.020 ∧ beta_mkt_60 ≤ 1.252 ∧ mkt_mom_5 > 0.019 ∧ rsi_14 > 69.007 ∧ vix_z_60 ≤ -0.991",
+      "condition": "0.0114604 < atrp_14 ≤ 0.0197833 ∧ beta_mkt_60 ≤ 1.25245 ∧ mkt_mom_5 > 0.0186606 ∧ rsi_14 > 69.0067 ∧ vix_z_60 ≤ -0.991154",
+      "bounds": {
+        "atrp_14": [
+          0.01146042114123702,
+          0.019783250987529755
+        ],
+        "vix_z_60": [
+          null,
+          -0.991154134273529
+        ],
+        "mkt_mom_5": [
+          0.01866064313799143,
+          null
+        ],
+        "beta_mkt_60": [
+          null,
+          1.2524486184120178
+        ],
+        "rsi_14": [
+          69.00670623779297,
+          null
+        ]
+      },
       "support": 81,
       "purity": 0.494
     },
@@ -743,7 +1499,25 @@
         54
       ],
       "cons": "a1",
-      "condition": "0.011 < atrp_14 ≤ 0.020 ∧ beta_mkt_60 > 1.252 ∧ mkt_mom_5 > 0.019 ∧ vix_z_60 ≤ -0.991",
+      "condition": "0.0114604 < atrp_14 ≤ 0.0197833 ∧ beta_mkt_60 > 1.25245 ∧ mkt_mom_5 > 0.0186606 ∧ vix_z_60 ≤ -0.991154",
+      "bounds": {
+        "atrp_14": [
+          0.01146042114123702,
+          0.019783250987529755
+        ],
+        "vix_z_60": [
+          null,
+          -0.991154134273529
+        ],
+        "mkt_mom_5": [
+          0.01866064313799143,
+          null
+        ],
+        "beta_mkt_60": [
+          1.2524486184120178,
+          null
+        ]
+      },
       "support": 81,
       "purity": 0.556
     },
@@ -766,7 +1540,33 @@
         56
       ],
       "cons": "a1",
-      "condition": "0.011 < atrp_14 ≤ 0.020 ∧ corr_mkt_60 ≤ 0.587 ∧ high ≤ 162.755 ∧ tnx_level ≤ 2.845 ∧ vix_z_60 > -0.991 ∧ yc_slope ≤ 2.056",
+      "condition": "0.0114604 < atrp_14 ≤ 0.0197833 ∧ corr_mkt_60 ≤ 0.587456 ∧ high ≤ 162.755 ∧ tnx_level ≤ 2.8445 ∧ vix_z_60 > -0.991154 ∧ yc_slope ≤ 2.056",
+      "bounds": {
+        "atrp_14": [
+          0.01146042114123702,
+          0.019783250987529755
+        ],
+        "vix_z_60": [
+          -0.991154134273529,
+          null
+        ],
+        "yc_slope": [
+          null,
+          2.0559998750686646
+        ],
+        "tnx_level": [
+          null,
+          2.8445000648498535
+        ],
+        "corr_mkt_60": [
+          null,
+          0.5874556005001068
+        ],
+        "high": [
+          null,
+          162.7550048828125
+        ]
+      },
       "support": 524,
       "purity": 0.385
     },
@@ -789,7 +1589,33 @@
         56
       ],
       "cons": "a2",
-      "condition": "0.011 < atrp_14 ≤ 0.020 ∧ corr_mkt_60 ≤ 0.587 ∧ high > 162.755 ∧ tnx_level ≤ 2.845 ∧ vix_z_60 > -0.991 ∧ yc_slope ≤ 2.056",
+      "condition": "0.0114604 < atrp_14 ≤ 0.0197833 ∧ corr_mkt_60 ≤ 0.587456 ∧ high > 162.755 ∧ tnx_level ≤ 2.8445 ∧ vix_z_60 > -0.991154 ∧ yc_slope ≤ 2.056",
+      "bounds": {
+        "atrp_14": [
+          0.01146042114123702,
+          0.019783250987529755
+        ],
+        "vix_z_60": [
+          -0.991154134273529,
+          null
+        ],
+        "yc_slope": [
+          null,
+          2.0559998750686646
+        ],
+        "tnx_level": [
+          null,
+          2.8445000648498535
+        ],
+        "corr_mkt_60": [
+          null,
+          0.5874556005001068
+        ],
+        "high": [
+          162.7550048828125,
+          null
+        ]
+      },
       "support": 152,
       "purity": 0.441
     },
@@ -812,7 +1638,33 @@
         56
       ],
       "cons": "a1",
-      "condition": "0.011 < atrp_14 ≤ 0.020 ∧ corr_mkt_60 > 0.587 ∧ macd_signal ≤ 3.107 ∧ tnx_level ≤ 2.845 ∧ vix_z_60 > -0.991 ∧ yc_slope ≤ 2.056",
+      "condition": "0.0114604 < atrp_14 ≤ 0.0197833 ∧ corr_mkt_60 > 0.587456 ∧ macd_signal ≤ 3.10727 ∧ tnx_level ≤ 2.8445 ∧ vix_z_60 > -0.991154 ∧ yc_slope ≤ 2.056",
+      "bounds": {
+        "atrp_14": [
+          0.01146042114123702,
+          0.019783250987529755
+        ],
+        "vix_z_60": [
+          -0.991154134273529,
+          null
+        ],
+        "yc_slope": [
+          null,
+          2.0559998750686646
+        ],
+        "tnx_level": [
+          null,
+          2.8445000648498535
+        ],
+        "corr_mkt_60": [
+          0.5874556005001068,
+          null
+        ],
+        "macd_signal": [
+          null,
+          3.107266426086426
+        ]
+      },
       "support": 1412,
       "purity": 0.537
     },
@@ -835,7 +1687,33 @@
         56
       ],
       "cons": "a1",
-      "condition": "0.011 < atrp_14 ≤ 0.020 ∧ corr_mkt_60 > 0.587 ∧ macd_signal > 3.107 ∧ tnx_level ≤ 2.845 ∧ vix_z_60 > -0.991 ∧ yc_slope ≤ 2.056",
+      "condition": "0.0114604 < atrp_14 ≤ 0.0197833 ∧ corr_mkt_60 > 0.587456 ∧ macd_signal > 3.10727 ∧ tnx_level ≤ 2.8445 ∧ vix_z_60 > -0.991154 ∧ yc_slope ≤ 2.056",
+      "bounds": {
+        "atrp_14": [
+          0.01146042114123702,
+          0.019783250987529755
+        ],
+        "vix_z_60": [
+          -0.991154134273529,
+          null
+        ],
+        "yc_slope": [
+          null,
+          2.0559998750686646
+        ],
+        "tnx_level": [
+          null,
+          2.8445000648498535
+        ],
+        "corr_mkt_60": [
+          0.5874556005001068,
+          null
+        ],
+        "macd_signal": [
+          3.107266426086426,
+          null
+        ]
+      },
       "support": 887,
       "purity": 0.395
     },
@@ -843,232 +1721,480 @@
       "id": "p40",
       "antecedent_features": [
         "atrp_14",
-        "irx_level",
         "tnx_level",
         "vix_z_60",
         "yc_slope"
       ],
       "ante": [
         32,
-        45,
         47,
         54,
         56
       ],
-      "cons": "a2",
-      "condition": "0.011 < atrp_14 ≤ 0.020 ∧ irx_level ≤ 0.036 ∧ tnx_level ≤ 2.845 ∧ -0.991 < vix_z_60 ≤ 0.617 ∧ yc_slope > 2.056",
-      "support": 100,
-      "purity": 0.39
+      "cons": "a1",
+      "condition": "0.0114604 < atrp_14 ≤ 0.0197833 ∧ tnx_level > 2.8445 ∧ vix_z_60 > -0.991154 ∧ yc_slope ≤ -1.297",
+      "bounds": {
+        "atrp_14": [
+          0.01146042114123702,
+          0.019783250987529755
+        ],
+        "vix_z_60": [
+          -0.991154134273529,
+          null
+        ],
+        "yc_slope": [
+          null,
+          -1.2969999313354492
+        ],
+        "tnx_level": [
+          2.8445000648498535,
+          null
+        ]
+      },
+      "support": 118,
+      "purity": 0.61
     },
     {
       "id": "p41",
       "antecedent_features": [
         "atrp_14",
-        "irx_level",
+        "mkt_mom_10",
         "tnx_level",
         "vix_z_60",
         "yc_slope"
       ],
       "ante": [
         32,
-        45,
+        39,
         47,
         54,
         56
       ],
-      "cons": "a2",
-      "condition": "0.011 < atrp_14 ≤ 0.020 ∧ irx_level ≤ 0.036 ∧ tnx_level ≤ 2.845 ∧ vix_z_60 > 0.617 ∧ yc_slope > 2.056",
-      "support": 83,
-      "purity": 0.47
+      "cons": "a1",
+      "condition": "0.0114604 < atrp_14 ≤ 0.0197833 ∧ mkt_mom_10 ≤ -0.0165423 ∧ tnx_level > 2.8445 ∧ vix_z_60 > -0.991154 ∧ -1.297 < yc_slope ≤ 2.056",
+      "bounds": {
+        "atrp_14": [
+          0.01146042114123702,
+          0.019783250987529755
+        ],
+        "vix_z_60": [
+          -0.991154134273529,
+          null
+        ],
+        "yc_slope": [
+          -1.2969999313354492,
+          2.0559998750686646
+        ],
+        "tnx_level": [
+          2.8445000648498535,
+          null
+        ],
+        "mkt_mom_10": [
+          null,
+          -0.01654230337589979
+        ]
+      },
+      "support": 349,
+      "purity": 0.458
     },
     {
       "id": "p42",
       "antecedent_features": [
         "atrp_14",
-        "irx_level",
+        "mkt_mom_10",
         "tnx_level",
         "vix_z_60",
         "yc_slope"
       ],
       "ante": [
         32,
-        45,
+        39,
         47,
         54,
         56
       ],
       "cons": "a3",
-      "condition": "0.011 < atrp_14 ≤ 0.020 ∧ irx_level > 0.036 ∧ tnx_level ≤ 2.845 ∧ vix_z_60 > -0.991 ∧ yc_slope > 2.056",
-      "support": 148,
-      "purity": 0.52
+      "condition": "0.0114604 < atrp_14 ≤ 0.0197833 ∧ mkt_mom_10 > -0.0165423 ∧ tnx_level > 2.8445 ∧ vix_z_60 > -0.991154 ∧ -1.297 < yc_slope ≤ 2.056",
+      "bounds": {
+        "atrp_14": [
+          0.01146042114123702,
+          0.019783250987529755
+        ],
+        "vix_z_60": [
+          -0.991154134273529,
+          null
+        ],
+        "yc_slope": [
+          -1.2969999313354492,
+          2.0559998750686646
+        ],
+        "tnx_level": [
+          2.8445000648498535,
+          null
+        ],
+        "mkt_mom_10": [
+          -0.01654230337589979,
+          null
+        ]
+      },
+      "support": 650,
+      "purity": 0.474
     },
     {
       "id": "p43",
       "antecedent_features": [
         "atrp_14",
         "irx_level",
-        "ret_std_20",
-        "tnx_level",
-        "vix_z_60"
+        "vix_z_60",
+        "yc_slope"
       ],
       "ante": [
         32,
-        34,
         45,
-        47,
-        54
+        54,
+        56
       ],
-      "cons": "a3",
-      "condition": "0.011 < atrp_14 ≤ 0.020 ∧ irx_level ≤ 2.287 ∧ ret_std_20 ≤ 0.013 ∧ tnx_level > 2.845 ∧ vix_z_60 > -0.991",
-      "support": 248,
-      "purity": 0.492
+      "cons": "a2",
+      "condition": "0.0114604 < atrp_14 ≤ 0.0197833 ∧ irx_level ≤ 0.0365 ∧ -0.991154 < vix_z_60 ≤ 0.617477 ∧ yc_slope > 2.056",
+      "bounds": {
+        "atrp_14": [
+          0.01146042114123702,
+          0.019783250987529755
+        ],
+        "vix_z_60": [
+          -0.991154134273529,
+          0.6174771189689636
+        ],
+        "yc_slope": [
+          2.0559998750686646,
+          null
+        ],
+        "irx_level": [
+          null,
+          0.0364999994635582
+        ]
+      },
+      "support": 100,
+      "purity": 0.39
     },
     {
       "id": "p44",
       "antecedent_features": [
         "atrp_14",
         "irx_level",
-        "ret_std_20",
-        "tnx_level",
-        "vix_z_60"
+        "vix_z_60",
+        "yc_slope"
       ],
       "ante": [
         32,
-        34,
         45,
-        47,
-        54
+        54,
+        56
       ],
-      "cons": "a1",
-      "condition": "0.011 < atrp_14 ≤ 0.020 ∧ irx_level ≤ 2.287 ∧ ret_std_20 > 0.013 ∧ tnx_level > 2.845 ∧ vix_z_60 > -0.991",
-      "support": 129,
-      "purity": 0.45
+      "cons": "a2",
+      "condition": "0.0114604 < atrp_14 ≤ 0.0197833 ∧ irx_level ≤ 0.0365 ∧ vix_z_60 > 0.617477 ∧ yc_slope > 2.056",
+      "bounds": {
+        "atrp_14": [
+          0.01146042114123702,
+          0.019783250987529755
+        ],
+        "vix_z_60": [
+          0.6174771189689636,
+          null
+        ],
+        "yc_slope": [
+          2.0559998750686646,
+          null
+        ],
+        "irx_level": [
+          null,
+          0.0364999994635582
+        ]
+      },
+      "support": 83,
+      "purity": 0.47
     },
     {
       "id": "p45",
       "antecedent_features": [
         "atrp_14",
         "irx_level",
-        "tnx_level",
-        "vix_z_60"
+        "mkt_trend_20",
+        "vix_z_60",
+        "yc_slope"
       ],
       "ante": [
         32,
         45,
-        47,
-        54
+        51,
+        54,
+        56
       ],
       "cons": "a3",
-      "condition": "0.011 < atrp_14 ≤ 0.020 ∧ 2.287 < irx_level ≤ 3.605 ∧ tnx_level > 2.845 ∧ vix_z_60 > -0.991",
-      "support": 155,
-      "purity": 0.716
+      "condition": "0.0114604 < atrp_14 ≤ 0.0197833 ∧ irx_level > 0.0365 ∧ mkt_trend_20 ≤ -0.00773553 ∧ vix_z_60 > -0.991154 ∧ yc_slope > 2.056",
+      "bounds": {
+        "atrp_14": [
+          0.01146042114123702,
+          0.019783250987529755
+        ],
+        "vix_z_60": [
+          -0.991154134273529,
+          null
+        ],
+        "yc_slope": [
+          2.0559998750686646,
+          null
+        ],
+        "irx_level": [
+          0.0364999994635582,
+          null
+        ],
+        "mkt_trend_20": [
+          null,
+          -0.007735532708466053
+        ]
+      },
+      "support": 91,
+      "purity": 0.78
     },
     {
       "id": "p46",
       "antecedent_features": [
         "atrp_14",
         "irx_level",
-        "mkt_vol_20",
-        "tnx_level",
-        "vix_z_60"
+        "mkt_trend_20",
+        "vix_z_60",
+        "yc_slope"
       ],
       "ante": [
         32,
-        41,
         45,
-        47,
-        54
+        51,
+        54,
+        56
       ],
-      "cons": "a1",
-      "condition": "0.011 < atrp_14 ≤ 0.020 ∧ 3.605 < irx_level ≤ 5.251 ∧ mkt_vol_20 ≤ 0.008 ∧ tnx_level > 2.845 ∧ vix_z_60 > -0.991",
-      "support": 81,
-      "purity": 0.519
+      "cons": "a3",
+      "condition": "0.0114604 < atrp_14 ≤ 0.0197833 ∧ irx_level > 0.0365 ∧ mkt_trend_20 > -0.00773553 ∧ vix_z_60 > -0.991154 ∧ yc_slope > 2.056",
+      "bounds": {
+        "atrp_14": [
+          0.01146042114123702,
+          0.019783250987529755
+        ],
+        "vix_z_60": [
+          -0.991154134273529,
+          null
+        ],
+        "yc_slope": [
+          2.0559998750686646,
+          null
+        ],
+        "irx_level": [
+          0.0364999994635582,
+          null
+        ],
+        "mkt_trend_20": [
+          -0.007735532708466053,
+          null
+        ]
+      },
+      "support": 85,
+      "purity": 0.365
     },
     {
       "id": "p47",
       "antecedent_features": [
         "atrp_14",
-        "irx_level",
-        "mkt_vol_20",
-        "tnx_level",
-        "vix_z_60"
-      ],
-      "ante": [
-        32,
-        41,
-        45,
-        47,
-        54
-      ],
-      "cons": "a3",
-      "condition": "0.011 < atrp_14 ≤ 0.020 ∧ irx_level > 5.251 ∧ mkt_vol_20 ≤ 0.008 ∧ tnx_level > 2.845 ∧ vix_z_60 > -0.991",
-      "support": 196,
-      "purity": 0.546
-    },
-    {
-      "id": "p48",
-      "antecedent_features": [
-        "atrp_14",
-        "irx_level",
-        "mkt_vol_20",
-        "tnx_level",
-        "vix_z_60"
-      ],
-      "ante": [
-        32,
-        41,
-        45,
-        47,
-        54
-      ],
-      "cons": "a1",
-      "condition": "0.011 < atrp_14 ≤ 0.020 ∧ irx_level > 3.605 ∧ mkt_vol_20 > 0.008 ∧ 2.845 < tnx_level ≤ 4.116 ∧ vix_z_60 > -0.991",
-      "support": 267,
-      "purity": 0.487
-    },
-    {
-      "id": "p49",
-      "antecedent_features": [
-        "atrp_14",
-        "irx_level",
-        "mkt_vol_20",
-        "tnx_level",
-        "vix_z_60"
-      ],
-      "ante": [
-        32,
-        41,
-        45,
-        47,
-        54
-      ],
-      "cons": "a1",
-      "condition": "0.011 < atrp_14 ≤ 0.020 ∧ irx_level > 3.605 ∧ mkt_vol_20 > 0.008 ∧ tnx_level > 4.116 ∧ vix_z_60 > -0.991",
-      "support": 81,
-      "purity": 0.827
-    },
-    {
-      "id": "p50",
-      "antecedent_features": [
-        "atrp_14",
         "beta_mkt_60",
         "irx_level",
         "mkt_mom_5",
-        "mkt_vol_20",
+        "mkt_risk_20",
         "mom_5"
       ],
       "ante": [
         21,
         32,
         38,
-        41,
         45,
-        50
+        50,
+        52
       ],
       "cons": "a1",
-      "condition": "atrp_14 > 0.020 ∧ beta_mkt_60 ≤ 1.138 ∧ irx_level ≤ 0.163 ∧ mkt_mom_5 ≤ 0.009 ∧ mkt_vol_20 ≤ 0.012 ∧ mom_5 ≤ 0.036",
+      "condition": "atrp_14 > 0.0197833 ∧ beta_mkt_60 ≤ 1.13755 ∧ irx_level ≤ 0.1625 ∧ mkt_mom_5 ≤ 0.00946438 ∧ mkt_risk_20 ≤ 0.0122056 ∧ mom_5 ≤ 0.0362013",
+      "bounds": {
+        "atrp_14": [
+          0.019783250987529755,
+          null
+        ],
+        "beta_mkt_60": [
+          null,
+          1.1375532746315002
+        ],
+        "irx_level": [
+          null,
+          0.16250000149011612
+        ],
+        "mom_5": [
+          null,
+          0.03620133548974991
+        ],
+        "mkt_risk_20": [
+          null,
+          0.012205555569380522
+        ],
+        "mkt_mom_5": [
+          null,
+          0.009464382659643888
+        ]
+      },
       "support": 215,
       "purity": 0.619
+    },
+    {
+      "id": "p48",
+      "antecedent_features": [
+        "atrp_14",
+        "beta_mkt_60",
+        "irx_level",
+        "mkt_mom_5",
+        "mkt_risk_20",
+        "mom_5"
+      ],
+      "ante": [
+        21,
+        32,
+        38,
+        45,
+        50,
+        52
+      ],
+      "cons": "a3",
+      "condition": "atrp_14 > 0.0197833 ∧ beta_mkt_60 ≤ 1.13755 ∧ irx_level ≤ 0.1625 ∧ mkt_mom_5 > 0.00946438 ∧ mkt_risk_20 ≤ 0.0122056 ∧ mom_5 ≤ 0.0362013",
+      "bounds": {
+        "atrp_14": [
+          0.019783250987529755,
+          null
+        ],
+        "beta_mkt_60": [
+          null,
+          1.1375532746315002
+        ],
+        "irx_level": [
+          null,
+          0.16250000149011612
+        ],
+        "mom_5": [
+          null,
+          0.03620133548974991
+        ],
+        "mkt_risk_20": [
+          null,
+          0.012205555569380522
+        ],
+        "mkt_mom_5": [
+          0.009464382659643888,
+          null
+        ]
+      },
+      "support": 91,
+      "purity": 0.363
+    },
+    {
+      "id": "p49",
+      "antecedent_features": [
+        "atrp_14",
+        "beta_mkt_60",
+        "hl_range",
+        "irx_level",
+        "mkt_risk_20",
+        "mom_5"
+      ],
+      "ante": [
+        19,
+        21,
+        32,
+        45,
+        50,
+        52
+      ],
+      "cons": "a1",
+      "condition": "atrp_14 > 0.0197833 ∧ beta_mkt_60 ≤ 1.13755 ∧ hl_range ≤ 0.0184899 ∧ irx_level ≤ 0.1625 ∧ mkt_risk_20 > 0.0122056 ∧ mom_5 ≤ 0.0362013",
+      "bounds": {
+        "atrp_14": [
+          0.019783250987529755,
+          null
+        ],
+        "beta_mkt_60": [
+          null,
+          1.1375532746315002
+        ],
+        "irx_level": [
+          null,
+          0.16250000149011612
+        ],
+        "mom_5": [
+          null,
+          0.03620133548974991
+        ],
+        "mkt_risk_20": [
+          0.012205555569380522,
+          null
+        ],
+        "hl_range": [
+          null,
+          0.018489924259483814
+        ]
+      },
+      "support": 121,
+      "purity": 0.62
+    },
+    {
+      "id": "p50",
+      "antecedent_features": [
+        "atrp_14",
+        "beta_mkt_60",
+        "hl_range",
+        "irx_level",
+        "mkt_risk_20",
+        "mom_5"
+      ],
+      "ante": [
+        19,
+        21,
+        32,
+        45,
+        50,
+        52
+      ],
+      "cons": "a1",
+      "condition": "atrp_14 > 0.0197833 ∧ beta_mkt_60 ≤ 1.13755 ∧ hl_range > 0.0184899 ∧ irx_level ≤ 0.1625 ∧ mkt_risk_20 > 0.0122056 ∧ mom_5 ≤ 0.0362013",
+      "bounds": {
+        "atrp_14": [
+          0.019783250987529755,
+          null
+        ],
+        "beta_mkt_60": [
+          null,
+          1.1375532746315002
+        ],
+        "irx_level": [
+          null,
+          0.16250000149011612
+        ],
+        "mom_5": [
+          null,
+          0.03620133548974991
+        ],
+        "mkt_risk_20": [
+          0.012205555569380522,
+          null
+        ],
+        "hl_range": [
+          0.018489924259483814,
+          null
+        ]
+      },
+      "support": 238,
+      "purity": 0.887
     },
     {
       "id": "p51",
@@ -1076,87 +2202,159 @@
         "atrp_14",
         "beta_mkt_60",
         "irx_level",
-        "mkt_mom_5",
-        "mkt_vol_20",
         "mom_5"
       ],
       "ante": [
         21,
         32,
-        38,
-        41,
         45,
         50
       ],
-      "cons": "a3",
-      "condition": "atrp_14 > 0.020 ∧ beta_mkt_60 ≤ 1.138 ∧ irx_level ≤ 0.163 ∧ mkt_mom_5 > 0.009 ∧ mkt_vol_20 ≤ 0.012 ∧ mom_5 ≤ 0.036",
-      "support": 91,
-      "purity": 0.363
+      "cons": "a1",
+      "condition": "atrp_14 > 0.0197833 ∧ beta_mkt_60 ≤ 0.999331 ∧ irx_level ≤ 0.1625 ∧ mom_5 > 0.0362013",
+      "bounds": {
+        "atrp_14": [
+          0.019783250987529755,
+          null
+        ],
+        "beta_mkt_60": [
+          null,
+          0.9993310570716858
+        ],
+        "irx_level": [
+          null,
+          0.16250000149011612
+        ],
+        "mom_5": [
+          0.03620133548974991,
+          null
+        ]
+      },
+      "support": 132,
+      "purity": 0.538
     },
     {
       "id": "p52",
       "antecedent_features": [
         "atrp_14",
         "beta_mkt_60",
-        "hl_range",
         "irx_level",
-        "mkt_vol_20",
         "mom_5"
       ],
       "ante": [
-        19,
         21,
         32,
-        41,
         45,
         50
       ],
-      "cons": "a1",
-      "condition": "atrp_14 > 0.020 ∧ beta_mkt_60 ≤ 1.138 ∧ hl_range ≤ 0.018 ∧ irx_level ≤ 0.163 ∧ mkt_vol_20 > 0.012 ∧ mom_5 ≤ 0.036",
-      "support": 121,
-      "purity": 0.62
+      "cons": "a3",
+      "condition": "atrp_14 > 0.0197833 ∧ 0.999331 < beta_mkt_60 ≤ 1.13755 ∧ irx_level ≤ 0.1625 ∧ mom_5 > 0.0362013",
+      "bounds": {
+        "atrp_14": [
+          0.019783250987529755,
+          null
+        ],
+        "beta_mkt_60": [
+          0.9993310570716858,
+          1.1375532746315002
+        ],
+        "irx_level": [
+          null,
+          0.16250000149011612
+        ],
+        "mom_5": [
+          0.03620133548974991,
+          null
+        ]
+      },
+      "support": 144,
+      "purity": 0.444
     },
     {
       "id": "p53",
       "antecedent_features": [
         "atrp_14",
         "beta_mkt_60",
-        "hl_range",
+        "irx_change_1d",
         "irx_level",
-        "mkt_vol_20",
-        "mom_5"
+        "vix_x_mktret"
       ],
       "ante": [
-        19,
-        21,
         32,
-        41,
         45,
-        50
+        46,
+        50,
+        55
       ],
-      "cons": "a1",
-      "condition": "atrp_14 > 0.020 ∧ beta_mkt_60 ≤ 1.138 ∧ hl_range > 0.018 ∧ irx_level ≤ 0.163 ∧ mkt_vol_20 > 0.012 ∧ mom_5 ≤ 0.036",
-      "support": 238,
-      "purity": 0.887
+      "cons": "a3",
+      "condition": "atrp_14 > 0.0197833 ∧ beta_mkt_60 ≤ 1.13755 ∧ irx_change_1d ≤ -0.0175 ∧ irx_level > 0.1625 ∧ vix_x_mktret ≤ -0.00165828",
+      "bounds": {
+        "atrp_14": [
+          0.019783250987529755,
+          null
+        ],
+        "beta_mkt_60": [
+          null,
+          1.1375532746315002
+        ],
+        "irx_level": [
+          0.16250000149011612,
+          null
+        ],
+        "vix_x_mktret": [
+          null,
+          -0.0016582781099714339
+        ],
+        "irx_change_1d": [
+          null,
+          -0.01749999076128006
+        ]
+      },
+      "support": 85,
+      "purity": 0.729
     },
     {
       "id": "p54",
       "antecedent_features": [
         "atrp_14",
         "beta_mkt_60",
+        "irx_change_1d",
         "irx_level",
-        "mom_5"
+        "vix_x_mktret"
       ],
       "ante": [
-        21,
         32,
         45,
-        50
+        46,
+        50,
+        55
       ],
-      "cons": "a1",
-      "condition": "atrp_14 > 0.020 ∧ beta_mkt_60 ≤ 0.999 ∧ irx_level ≤ 0.163 ∧ mom_5 > 0.036",
-      "support": 132,
-      "purity": 0.538
+      "cons": "a3",
+      "condition": "atrp_14 > 0.0197833 ∧ beta_mkt_60 ≤ 1.13755 ∧ irx_change_1d > -0.0175 ∧ irx_level > 0.1625 ∧ vix_x_mktret ≤ -0.00165828",
+      "bounds": {
+        "atrp_14": [
+          0.019783250987529755,
+          null
+        ],
+        "beta_mkt_60": [
+          null,
+          1.1375532746315002
+        ],
+        "irx_level": [
+          0.16250000149011612,
+          null
+        ],
+        "vix_x_mktret": [
+          null,
+          -0.0016582781099714339
+        ],
+        "irx_change_1d": [
+          -0.01749999076128006,
+          null
+        ]
+      },
+      "support": 127,
+      "purity": 0.409
     },
     {
       "id": "p55",
@@ -1164,60 +2362,134 @@
         "atrp_14",
         "beta_mkt_60",
         "irx_level",
-        "mom_5"
+        "macd_hist",
+        "vix_x_mktret"
       ],
       "ante": [
-        21,
+        29,
         32,
         45,
-        50
+        50,
+        55
       ],
-      "cons": "a3",
-      "condition": "atrp_14 > 0.020 ∧ 0.999 < beta_mkt_60 ≤ 1.138 ∧ irx_level ≤ 0.163 ∧ mom_5 > 0.036",
-      "support": 144,
-      "purity": 0.444
+      "cons": "a1",
+      "condition": "atrp_14 > 0.0197833 ∧ beta_mkt_60 ≤ 1.13755 ∧ irx_level > 0.1625 ∧ macd_hist ≤ -0.118014 ∧ vix_x_mktret > -0.00165828",
+      "bounds": {
+        "atrp_14": [
+          0.019783250987529755,
+          null
+        ],
+        "beta_mkt_60": [
+          null,
+          1.1375532746315002
+        ],
+        "irx_level": [
+          0.16250000149011612,
+          null
+        ],
+        "vix_x_mktret": [
+          -0.0016582781099714339,
+          null
+        ],
+        "macd_hist": [
+          null,
+          -0.1180141232907772
+        ]
+      },
+      "support": 296,
+      "purity": 0.537
     },
     {
       "id": "p56",
       "antecedent_features": [
         "atrp_14",
         "beta_mkt_60",
-        "irx_change_1d",
         "irx_level",
+        "macd_hist",
         "vix_x_mktret"
       ],
       "ante": [
+        29,
         32,
         45,
-        46,
         50,
         55
       ],
       "cons": "a3",
-      "condition": "atrp_14 > 0.020 ∧ beta_mkt_60 ≤ 1.138 ∧ irx_change_1d ≤ -0.017 ∧ irx_level > 0.163 ∧ vix_x_mktret ≤ -0.002",
-      "support": 85,
-      "purity": 0.729
+      "condition": "atrp_14 > 0.0197833 ∧ beta_mkt_60 ≤ 1.13755 ∧ irx_level > 0.1625 ∧ -0.118014 < macd_hist ≤ 0.105456 ∧ vix_x_mktret > -0.00165828",
+      "bounds": {
+        "atrp_14": [
+          0.019783250987529755,
+          null
+        ],
+        "beta_mkt_60": [
+          null,
+          1.1375532746315002
+        ],
+        "irx_level": [
+          0.16250000149011612,
+          null
+        ],
+        "vix_x_mktret": [
+          -0.0016582781099714339,
+          null
+        ],
+        "macd_hist": [
+          -0.1180141232907772,
+          0.10545603185892105
+        ]
+      },
+      "support": 235,
+      "purity": 0.472
     },
     {
       "id": "p57",
       "antecedent_features": [
         "atrp_14",
         "beta_mkt_60",
-        "irx_change_1d",
         "irx_level",
-        "vix_x_mktret"
+        "macd_hist",
+        "vix_x_mktret",
+        "yc_slope"
       ],
       "ante": [
+        29,
         32,
         45,
-        46,
         50,
-        55
+        55,
+        56
       ],
-      "cons": "a3",
-      "condition": "atrp_14 > 0.020 ∧ beta_mkt_60 ≤ 1.138 ∧ irx_change_1d > -0.017 ∧ irx_level > 0.163 ∧ vix_x_mktret ≤ -0.002",
-      "support": 127,
-      "purity": 0.409
+      "cons": "a1",
+      "condition": "atrp_14 > 0.0197833 ∧ beta_mkt_60 ≤ 1.13755 ∧ irx_level > 0.1625 ∧ macd_hist > 0.105456 ∧ vix_x_mktret > -0.00165828 ∧ yc_slope ≤ 0.8965",
+      "bounds": {
+        "atrp_14": [
+          0.019783250987529755,
+          null
+        ],
+        "beta_mkt_60": [
+          null,
+          1.1375532746315002
+        ],
+        "irx_level": [
+          0.16250000149011612,
+          null
+        ],
+        "vix_x_mktret": [
+          -0.0016582781099714339,
+          null
+        ],
+        "macd_hist": [
+          0.10545603185892105,
+          null
+        ],
+        "yc_slope": [
+          null,
+          0.8964999914169312
+        ]
+      },
+      "support": 228,
+      "purity": 0.732
     },
     {
       "id": "p58",
@@ -1226,48 +2498,6 @@
         "beta_mkt_60",
         "irx_level",
         "macd_hist",
-        "vix_x_mktret"
-      ],
-      "ante": [
-        29,
-        32,
-        45,
-        50,
-        55
-      ],
-      "cons": "a1",
-      "condition": "atrp_14 > 0.020 ∧ beta_mkt_60 ≤ 1.138 ∧ irx_level > 0.163 ∧ macd_hist ≤ -0.118 ∧ vix_x_mktret > -0.002",
-      "support": 296,
-      "purity": 0.537
-    },
-    {
-      "id": "p59",
-      "antecedent_features": [
-        "atrp_14",
-        "beta_mkt_60",
-        "irx_level",
-        "macd_hist",
-        "vix_x_mktret"
-      ],
-      "ante": [
-        29,
-        32,
-        45,
-        50,
-        55
-      ],
-      "cons": "a3",
-      "condition": "atrp_14 > 0.020 ∧ beta_mkt_60 ≤ 1.138 ∧ irx_level > 0.163 ∧ -0.118 < macd_hist ≤ 0.105 ∧ vix_x_mktret > -0.002",
-      "support": 235,
-      "purity": 0.472
-    },
-    {
-      "id": "p60",
-      "antecedent_features": [
-        "atrp_14",
-        "beta_mkt_60",
-        "irx_level",
-        "macd_hist",
         "vix_x_mktret",
         "yc_slope"
       ],
@@ -1280,35 +2510,38 @@
         56
       ],
       "cons": "a1",
-      "condition": "atrp_14 > 0.020 ∧ beta_mkt_60 ≤ 1.138 ∧ irx_level > 0.163 ∧ macd_hist > 0.105 ∧ vix_x_mktret > -0.002 ∧ yc_slope ≤ 0.896",
-      "support": 228,
-      "purity": 0.732
-    },
-    {
-      "id": "p61",
-      "antecedent_features": [
-        "atrp_14",
-        "beta_mkt_60",
-        "irx_level",
-        "macd_hist",
-        "vix_x_mktret",
-        "yc_slope"
-      ],
-      "ante": [
-        29,
-        32,
-        45,
-        50,
-        55,
-        56
-      ],
-      "cons": "a1",
-      "condition": "atrp_14 > 0.020 ∧ beta_mkt_60 ≤ 1.138 ∧ irx_level > 0.163 ∧ macd_hist > 0.105 ∧ vix_x_mktret > -0.002 ∧ yc_slope > 0.896",
+      "condition": "atrp_14 > 0.0197833 ∧ beta_mkt_60 ≤ 1.13755 ∧ irx_level > 0.1625 ∧ macd_hist > 0.105456 ∧ vix_x_mktret > -0.00165828 ∧ yc_slope > 0.8965",
+      "bounds": {
+        "atrp_14": [
+          0.019783250987529755,
+          null
+        ],
+        "beta_mkt_60": [
+          null,
+          1.1375532746315002
+        ],
+        "irx_level": [
+          0.16250000149011612,
+          null
+        ],
+        "vix_x_mktret": [
+          -0.0016582781099714339,
+          null
+        ],
+        "macd_hist": [
+          0.10545603185892105,
+          null
+        ],
+        "yc_slope": [
+          0.8964999914169312,
+          null
+        ]
+      },
       "support": 196,
       "purity": 0.464
     },
     {
-      "id": "p62",
+      "id": "p59",
       "antecedent_features": [
         "atrp_14",
         "beta_mkt_60",
@@ -1320,58 +2553,124 @@
         50
       ],
       "cons": "a1",
-      "condition": "atrp_14 > 0.020 ∧ beta_mkt_60 > 1.138 ∧ ema_26 ≤ 14.704",
+      "condition": "atrp_14 > 0.0197833 ∧ beta_mkt_60 > 1.13755 ∧ ema_26 ≤ 14.7043",
+      "bounds": {
+        "atrp_14": [
+          0.019783250987529755,
+          null
+        ],
+        "beta_mkt_60": [
+          1.1375532746315002,
+          null
+        ],
+        "ema_26": [
+          null,
+          14.704323768615723
+        ]
+      },
       "support": 103,
       "purity": 0.767
     },
     {
-      "id": "p63",
+      "id": "p60",
       "antecedent_features": [
         "atrp_14",
         "bb_width_20",
         "beta_mkt_60",
         "ema_26",
-        "mkt_risk_20",
+        "mkt_vol_20",
         "vix_level"
       ],
       "ante": [
         26,
         30,
         32,
+        41,
         42,
-        50,
-        52
+        50
       ],
       "cons": "a1",
-      "condition": "atrp_14 > 0.020 ∧ bb_width_20 ≤ 0.039 ∧ beta_mkt_60 > 1.138 ∧ ema_26 > 14.704 ∧ mkt_risk_20 ≤ 0.008 ∧ vix_level ≤ 19.755",
+      "condition": "atrp_14 > 0.0197833 ∧ bb_width_20 ≤ 0.0393571 ∧ beta_mkt_60 > 1.13755 ∧ ema_26 > 14.7043 ∧ mkt_vol_20 ≤ 0.0079984 ∧ vix_level ≤ 19.755",
+      "bounds": {
+        "atrp_14": [
+          0.019783250987529755,
+          null
+        ],
+        "beta_mkt_60": [
+          1.1375532746315002,
+          null
+        ],
+        "ema_26": [
+          14.704323768615723,
+          null
+        ],
+        "bb_width_20": [
+          null,
+          0.03935708478093147
+        ],
+        "vix_level": [
+          null,
+          19.755000114440918
+        ],
+        "mkt_vol_20": [
+          null,
+          0.007998403161764145
+        ]
+      },
       "support": 100,
       "purity": 0.61
     },
     {
-      "id": "p64",
+      "id": "p61",
       "antecedent_features": [
         "atrp_14",
         "bb_width_20",
         "beta_mkt_60",
         "ema_26",
-        "mkt_risk_20",
+        "mkt_vol_20",
         "vix_level"
       ],
       "ante": [
         26,
         30,
         32,
+        41,
         42,
-        50,
-        52
+        50
       ],
       "cons": "a2",
-      "condition": "atrp_14 > 0.020 ∧ bb_width_20 ≤ 0.039 ∧ beta_mkt_60 > 1.138 ∧ ema_26 > 14.704 ∧ mkt_risk_20 > 0.008 ∧ vix_level ≤ 19.755",
+      "condition": "atrp_14 > 0.0197833 ∧ bb_width_20 ≤ 0.0393571 ∧ beta_mkt_60 > 1.13755 ∧ ema_26 > 14.7043 ∧ mkt_vol_20 > 0.0079984 ∧ vix_level ≤ 19.755",
+      "bounds": {
+        "atrp_14": [
+          0.019783250987529755,
+          null
+        ],
+        "beta_mkt_60": [
+          1.1375532746315002,
+          null
+        ],
+        "ema_26": [
+          14.704323768615723,
+          null
+        ],
+        "bb_width_20": [
+          null,
+          0.03935708478093147
+        ],
+        "vix_level": [
+          null,
+          19.755000114440918
+        ],
+        "mkt_vol_20": [
+          0.007998403161764145,
+          null
+        ]
+      },
       "support": 95,
       "purity": 0.368
     },
     {
-      "id": "p65",
+      "id": "p62",
       "antecedent_features": [
         "atrp_14",
         "bb_width_20",
@@ -1387,12 +2686,34 @@
         50
       ],
       "cons": "a1",
-      "condition": "atrp_14 > 0.020 ∧ bb_width_20 ≤ 0.039 ∧ beta_mkt_60 > 1.138 ∧ ema_26 > 14.704 ∧ vix_level > 19.755",
+      "condition": "atrp_14 > 0.0197833 ∧ bb_width_20 ≤ 0.0393571 ∧ beta_mkt_60 > 1.13755 ∧ ema_26 > 14.7043 ∧ vix_level > 19.755",
+      "bounds": {
+        "atrp_14": [
+          0.019783250987529755,
+          null
+        ],
+        "beta_mkt_60": [
+          1.1375532746315002,
+          null
+        ],
+        "ema_26": [
+          14.704323768615723,
+          null
+        ],
+        "bb_width_20": [
+          null,
+          0.03935708478093147
+        ],
+        "vix_level": [
+          19.755000114440918,
+          null
+        ]
+      },
       "support": 128,
       "purity": 0.68
     },
     {
-      "id": "p66",
+      "id": "p63",
       "antecedent_features": [
         "atrp_14",
         "bb_width_20",
@@ -1410,12 +2731,38 @@
         56
       ],
       "cons": "a1",
-      "condition": "atrp_14 > 0.020 ∧ bb_width_20 > 0.039 ∧ beta_mkt_60 > 1.138 ∧ ema_26 > 14.704 ∧ macd_signal ≤ -0.228 ∧ yc_slope ≤ 1.871",
+      "condition": "atrp_14 > 0.0197833 ∧ bb_width_20 > 0.0393571 ∧ beta_mkt_60 > 1.13755 ∧ ema_26 > 14.7043 ∧ macd_signal ≤ -0.227663 ∧ yc_slope ≤ 1.871",
+      "bounds": {
+        "atrp_14": [
+          0.019783250987529755,
+          null
+        ],
+        "beta_mkt_60": [
+          1.1375532746315002,
+          null
+        ],
+        "ema_26": [
+          14.704323768615723,
+          null
+        ],
+        "bb_width_20": [
+          0.03935708478093147,
+          null
+        ],
+        "yc_slope": [
+          null,
+          1.8709999322891235
+        ],
+        "macd_signal": [
+          null,
+          -0.22766327112913132
+        ]
+      },
       "support": 1466,
       "purity": 0.494
     },
     {
-      "id": "p67",
+      "id": "p64",
       "antecedent_features": [
         "atrp_14",
         "bb_width_20",
@@ -1433,12 +2780,38 @@
         56
       ],
       "cons": "a3",
-      "condition": "atrp_14 > 0.020 ∧ bb_width_20 > 0.039 ∧ beta_mkt_60 > 1.138 ∧ ema_26 > 14.704 ∧ macd_signal > -0.228 ∧ yc_slope ≤ 1.871",
-      "support": 1547,
-      "purity": 0.449
+      "condition": "atrp_14 > 0.0197833 ∧ bb_width_20 > 0.0393571 ∧ beta_mkt_60 > 1.13755 ∧ ema_26 > 14.7043 ∧ macd_signal > -0.227663 ∧ yc_slope ≤ 1.871",
+      "bounds": {
+        "atrp_14": [
+          0.019783250987529755,
+          null
+        ],
+        "beta_mkt_60": [
+          1.1375532746315002,
+          null
+        ],
+        "ema_26": [
+          14.704323768615723,
+          null
+        ],
+        "bb_width_20": [
+          0.03935708478093147,
+          null
+        ],
+        "yc_slope": [
+          null,
+          1.8709999322891235
+        ],
+        "macd_signal": [
+          -0.22766327112913132,
+          null
+        ]
+      },
+      "support": 1542,
+      "purity": 0.447
     },
     {
-      "id": "p68",
+      "id": "p65",
       "antecedent_features": [
         "atrp_14",
         "bb_width_20",
@@ -1456,12 +2829,38 @@
         56
       ],
       "cons": "a3",
-      "condition": "atrp_14 > 0.020 ∧ bb_width_20 > 0.039 ∧ beta_mkt_60 > 1.138 ∧ ema_26 > 14.704 ∧ tnx_level ≤ 2.822 ∧ yc_slope > 1.871",
+      "condition": "atrp_14 > 0.0197833 ∧ bb_width_20 > 0.0393571 ∧ beta_mkt_60 > 1.13755 ∧ ema_26 > 14.7043 ∧ tnx_level ≤ 2.822 ∧ yc_slope > 1.871",
+      "bounds": {
+        "atrp_14": [
+          0.019783250987529755,
+          null
+        ],
+        "beta_mkt_60": [
+          1.1375532746315002,
+          null
+        ],
+        "ema_26": [
+          14.704323768615723,
+          null
+        ],
+        "bb_width_20": [
+          0.03935708478093147,
+          null
+        ],
+        "yc_slope": [
+          1.8709999322891235,
+          null
+        ],
+        "tnx_level": [
+          null,
+          2.822000026702881
+        ]
+      },
       "support": 260,
       "purity": 0.431
     },
     {
-      "id": "p69",
+      "id": "p66",
       "antecedent_features": [
         "atrp_14",
         "bb_width_20",
@@ -1479,7 +2878,33 @@
         56
       ],
       "cons": "a3",
-      "condition": "atrp_14 > 0.020 ∧ bb_width_20 > 0.039 ∧ beta_mkt_60 > 1.138 ∧ ema_26 > 14.704 ∧ tnx_level > 2.822 ∧ yc_slope > 1.871",
+      "condition": "atrp_14 > 0.0197833 ∧ bb_width_20 > 0.0393571 ∧ beta_mkt_60 > 1.13755 ∧ ema_26 > 14.7043 ∧ tnx_level > 2.822 ∧ yc_slope > 1.871",
+      "bounds": {
+        "atrp_14": [
+          0.019783250987529755,
+          null
+        ],
+        "beta_mkt_60": [
+          1.1375532746315002,
+          null
+        ],
+        "ema_26": [
+          14.704323768615723,
+          null
+        ],
+        "bb_width_20": [
+          0.03935708478093147,
+          null
+        ],
+        "yc_slope": [
+          1.8709999322891235,
+          null
+        ],
+        "tnx_level": [
+          2.822000026702881,
+          null
+        ]
+      },
       "support": 88,
       "purity": 0.807
     }

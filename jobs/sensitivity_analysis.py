@@ -2,18 +2,17 @@
 Sensitivity analysis: robustness of the method to the forecast horizon K.
 ========================================================================
 
-Goal: show that the approach works not only at K=5 days,
-but also at K=10 and K=20 (different forecast horizons).
+Repeats the walk-forward evaluation of the machine-learning models of
+train_baseline.py at K = 10 and K = 20 (K = 5 is the main run) and summarises
+the mean test metric per instrument, model and horizon (Table 9 reports the best
+machine-learning volatility RMSE per instrument and horizon). The econometric,
+hybrid and deep models are evaluated at K = 5 only.
 
-Reviewers always ask: "Robust to hyperparameter choices?"
-This script answers clearly: across all K from 5 to 20 ExtraTrees dominates
-on volatility, while the HYBRID models stay stable on direction.
-
-NOTE: a full run takes ~3-5 hours (1-2 hours per K).
-Best run overnight.
+A full run takes about 3-5 hours.
 
 Run:
-    python -m jobs.sensitivity_analysis
+    python -m jobs.sensitivity_analysis              # train K = 5, 10, 20 and summarise
+    python -m jobs.sensitivity_analysis summarise    # summary from existing metric files
 
 Output:
     artifacts/sensitivity_K_summary.csv  — summary table for the paper
@@ -35,6 +34,8 @@ load_dotenv()
 
 # Horizons tested for robustness
 HORIZONS = [5, 10, 20]
+ML_MODELS = {"EXTRATREES", "HYBRID_STACK_REG", "XGB", "LGBM", "HGB",
+             "LOGREG", "RF", "HYBRID_VOTING", "HYBRID_STACK"}
 TASKS = ["direction", "volatility"]
 END_DATE = os.environ.get("END_DATE", "2026-06-01")
 
@@ -76,7 +77,9 @@ def aggregate_results() -> pd.DataFrame:
                 print(f"[WARN] Not found: {csv}")
                 continue
             df = pd.read_csv(csv)
-            df = df[df["split"] == "test"].copy()
+            # only the walk-forward models of train_baseline.py, which are run at every K
+            # (Table 9); econometric, hybrid and deep models exist only for K = 5
+            df = df[(df["split"] == "test") & (df["model"].isin(ML_MODELS))].copy()
             df["K"] = k
 
             # direction: AUC, volatility: RMSE
@@ -141,15 +144,15 @@ def main() -> None:
     print(f" Horizons:  K = {HORIZONS}")
     print(f" Tasks:     {TASKS}")
     print(f" END_DATE:  {END_DATE}")
-    print(f" Tickers:   taken from features_daily")
+    print(" Tickers:   taken from features_daily")
     print("=" * 70)
     print(" WARNING: a full run takes ~3-5 hours on an M4!")
     print(" Can be run overnight.")
     print("=" * 70)
 
-    # --- Stage 1: run train_baseline for each K and task ---
+    # --- Stage 1: run train_baseline for each K and task (skipped with "summarise") ---
     overall_start = time.time()
-    for k in HORIZONS:
+    for k in ([] if "summarise" in sys.argv[1:] else HORIZONS):
         # Skip K=5 if files already exist (already generated)
         skip_k5 = (
             k == 5
