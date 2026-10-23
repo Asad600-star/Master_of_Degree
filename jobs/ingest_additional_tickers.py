@@ -17,7 +17,6 @@ Run:
 from __future__ import annotations
 
 import os
-from datetime import date, timedelta
 
 import pandas as pd
 import yfinance as yf

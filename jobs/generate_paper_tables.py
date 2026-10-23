@@ -1,4 +1,8 @@
 """
+OBSOLETE - superseded by the scripts listed in README.md (one per table); kept for the record.
+It compares against the ARIMA rows of the earlier, unfair econometric baseline,
+which are no longer produced, so its output does not correspond to the paper.
+
 Generates all paper tables from the collected metrics.
 ==========================================================
 
@@ -18,7 +22,6 @@ from __future__ import annotations
 
 from pathlib import Path
 import pandas as pd
-import numpy as np
 
 A = Path("artifacts")
 OUT = A / "paper_tables.txt"

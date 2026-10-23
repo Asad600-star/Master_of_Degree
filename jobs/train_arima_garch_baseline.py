@@ -1,6 +1,14 @@
 """
-ARIMA + GARCH baselines for volatility forecasting.
-=========================================================
+DEPRECATED - superseded by jobs/econometric_baselines.py; kept only for the record.
+==================================================================================
+This script evaluated the econometric models on its own fold grid and held one
+forecast constant over each 126-day test block, and it used the dispersion of
+ARIMA mean forecasts as a volatility forecast. Both choices make the comparison
+with daily-updated machine-learning forecasts unfair, so its results are not
+used in the paper. Running it would also overwrite the GARCH rows written by
+jobs/econometric_baselines.py.
+
+ARIMA + GARCH baselines for volatility forecasting (original description).
 
 Classical econometric baselines for the paper:
 - ARIMA(p, d, q): AIC-based order search, k-day realised-volatility forecast

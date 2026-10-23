@@ -11,7 +11,7 @@ production tree ensembles, for BOTH tasks:
 
 Results are appended to artifacts/metrics_walk_direction_k5.csv and
 artifacts/metrics_walk_volatility_k5.csv (replacing any previous rows for these
-model names), so they flow directly into Tables IV/V and the CD diagrams.
+model names), so they flow directly into Tables 5-6 and the critical-difference diagrams.
 
 Run:
     python -m jobs.train_deep_baselines                 # both tasks, all models
@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import os
 import random
-from dataclasses import dataclass, asdict
 from pathlib import Path
 
 import numpy as np
@@ -36,6 +35,7 @@ from sklearn.metrics import (roc_auc_score, f1_score, accuracy_score,
                              mean_squared_error, r2_score)
 
 from jobs.train_baseline import add_technical_features, build_feature_matrix, compute_targets
+from jobs.sequence_windows import make_sequences
 
 load_dotenv()
 
@@ -70,6 +70,9 @@ def set_seeds(seed=SEED):
 
 
 def get_device():
+    forced = os.environ.get("DEEP_DEVICE")              # e.g. "cpu" to reproduce without a GPU
+    if forced:
+        return torch.device(forced)
     if torch.cuda.is_available():
         return torch.device("cuda")
     if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
@@ -183,18 +186,6 @@ def make_model(name, n_features):
     raise ValueError(name)
 
 
-def make_sequences(X, y, seq_len):
-    n = len(X)
-    if n <= seq_len:
-        return np.empty((0, seq_len, X.shape[1]), np.float32), np.empty((0,), np.float32)
-    Xs = np.zeros((n - seq_len, seq_len, X.shape[1]), np.float32)
-    ys = np.zeros((n - seq_len,), np.float32)
-    for i in range(seq_len, n):
-        Xs[i - seq_len] = X[i - seq_len:i]
-        ys[i - seq_len] = y[i]
-    return Xs, ys
-
-
 def train_one(name, task, Xtr, ytr, Xva, yva, n_features):
     set_seeds(SEED)
     model = make_model(name, n_features).to(DEVICE)
@@ -268,11 +259,13 @@ def walk_forward(engine, sym, name, task):
         if len(tr) < 500 or len(va) < 80 or len(te) < 80:
             i += WF_STEP_DAYS; continue
         ycol = "target_direction" if task == "direction" else "target_vol_kd"
-        scaler = StandardScaler().fit(tr[feat].values)
-        def seqs(part):
-            Xs = scaler.transform(part[feat].values).astype(np.float32)
-            return make_sequences(Xs, part[ycol].values.astype(np.float32), SEQ_LEN)
-        Xtr, ytr = seqs(tr); Xva, yva = seqs(va); Xte, yte = seqs(te)
+        scaler = StandardScaler().fit(tr[feat].values)          # training rows only
+        X_all = scaler.transform(df[feat].values).astype(np.float32)
+        pos = {"tr": np.arange(len(tr)), "va": np.arange(i, i + len(va)),
+               "te": np.arange(i + WF_VAL_DAYS, i + WF_VAL_DAYS + len(te))}
+        Xtr, ytr = make_sequences(X_all, pos["tr"], tr[ycol].values, SEQ_LEN)
+        Xva, yva = make_sequences(X_all, pos["va"], va[ycol].values, SEQ_LEN)
+        Xte, yte = make_sequences(X_all, pos["te"], te[ycol].values, SEQ_LEN)
         if len(Xtr) < 100 or len(Xte) == 0:
             i += WF_STEP_DAYS; fold += 1; continue
         # standardise regression target on train

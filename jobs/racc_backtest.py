@@ -6,18 +6,21 @@ Tests whether abstaining when the conformal risk bound cannot be met (RACC)
 produces better *risk-adjusted* trading than acting on every signal.
 
 For each instrument, on the held-out test block (2024-2026), a daily directional
-strategy is simulated under three policies:
-  - UNGATED   : take the signed signal every day.
-  - RACC@alpha: take the signal only when |s| >= t_alpha (else stay in cash).
-  - BUY&HOLD  : passive long.
+strategy is simulated under four policies:
+  - UNGATED     : take the signed signal every day.
+  - RACC@alpha  : take the signal only when |s| >= t_alpha (else stay in cash).
+  - ONLINE@alpha: as RACC, with the threshold updated every day by online risk
+                  control (jobs.racc.online_thresholds), using resolved labels only.
+  - BUY&HOLD    : passive long.
 
 Metrics: annualised Sharpe, max drawdown, total return, coverage (days in market),
-number of position changes. Models are fit on data up to 2022; the conformal
-threshold is calibrated on 2023 (no test peeking).
+number of position changes. Models are fit on data up to 2022, the PAV calibrator
+on the first half of 2023 and the conformal threshold on its second half (no test
+peeking).
 
 Run:
     python -m jobs.racc_backtest
-Outputs: artifacts/racc_backtest.csv, /tmp/figs/fig14_racc_equity.png
+Outputs: artifacts/racc_backtest.csv, /tmp/figs/fig09_racc_equity.png
 """
 from __future__ import annotations
 
@@ -30,15 +33,9 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, text
-from sklearn.linear_model import LogisticRegression
-from sklearn.preprocessing import StandardScaler
-from sklearn.pipeline import Pipeline
-from sklearn.isotonic import IsotonicRegression
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import ExtraTreesRegressor
 
-from jobs.train_baseline import add_technical_features, build_feature_matrix, compute_targets
+# one definition of the data, the RACC loss and the threshold (jobs/racc.py)
+from jobs.racc import build_pool, crc_threshold, fit_racc, get_engine, online_thresholds, split
 
 load_dotenv()
 SEED = 42
@@ -46,60 +43,19 @@ END_DATE = os.environ.get("END_DATE", "2026-06-01")
 HORIZON = 5
 TAU = 0.01
 TRAIN_END = "2022-12-31"
+TUNE_END = "2023-06-30"
 CALIB_END = "2023-12-31"
-B = 3.0
-EPS = 1e-4
 FEE = 5e-4                       # 5 bps per position change
 ALPHAS = [0.30, 0.45]            # RACC risk budgets to report
+GAMMA = 0.05                     # step size of the online threshold (fixed a priori)
+LAG = 6                          # trading days until a 5-day label has resolved
+# fusion weight of the calibrated probability against the rule belief; 0.5 weights
+# both equally (published back-test), 1.0 is the value selected on the tuning block in racc.py
+LAMBDA = float(os.environ.get("RACC_LAMBDA", "0.5"))
 SYMBOLS = ["AAPL", "TSLA", "MSFT", "GLD", "^GSPC", "^IXIC", "^DJI", "^RUT"]
 LABEL = {"^GSPC": "S&P 500", "^IXIC": "NASDAQ", "^DJI": "Dow Jones", "^RUT": "Russell 2k"}
 A = Path(__file__).resolve().parents[1] / "artifacts"
 FIG = Path(os.environ.get("FIG_DIR", "/tmp/figs"))
-
-_SQL = text("""
-    SELECT symbol, date, open, high, low, close, volume,
-           return_1d, log_return,
-           sma_5, volatility_5, sma_10, volatility_10, sma_20, volatility_20,
-           return_lag_1, return_lag_2, return_lag_3, return_lag_4, return_lag_5,
-           mkt_return_1d, mkt_log_return, mkt_mom_5, mkt_mom_10, mkt_mom_20, mkt_vol_20,
-           vix_level, vix_return_1d, vix_change_1d,
-           irx_level, irx_change_1d, tnx_level, tnx_change_1d
-    FROM features_daily WHERE symbol = :s ORDER BY date ASC
-""")
-
-
-def get_engine():
-    return create_engine(os.environ["DATABASE_URL"], pool_pre_ping=True)
-
-
-def build_pool(engine):
-    frames, feat = [], None
-    for s in SYMBOLS:
-        df = pd.read_sql(_SQL, engine, params={"s": s}, parse_dates=["date"])
-        df = df[df["date"] <= pd.to_datetime(END_DATE)].reset_index(drop=True)
-        if len(df) < 400:
-            continue
-        df = add_technical_features(df)
-        df, cols = build_feature_matrix(df)
-        if df.empty:
-            continue
-        keep_ret = df["return_1d"].values.copy()
-        df = compute_targets(df, HORIZON)
-        feat = feat or cols
-        frames.append(df)
-    data = pd.concat(frames, ignore_index=True).sort_values(["symbol", "date"]).reset_index(drop=True)
-    r = data["target_return_kd"].values
-    data["cls3"] = np.where(r > TAU, 0, np.where(r < -TAU, 2, 1))
-    return data, feat
-
-
-def crc_threshold(s_abs, loss, alpha, grid):
-    n = len(loss)
-    for t in grid:
-        if (n * np.mean(loss * (s_abs >= t)) + B) / (n + 1) <= alpha:
-            return t
-    return grid[-1]
-
 
 def perf(pnl):
     """Annualised Sharpe, max drawdown, total return from a daily-pnl series."""
@@ -119,40 +75,31 @@ def main():
     FIG.mkdir(parents=True, exist_ok=True)
     engine = get_engine()
     data, feat = build_pool(engine)
-    tr = data[data["date"] <= pd.to_datetime(TRAIN_END)]
-    ca = data[(data["date"] > pd.to_datetime(TRAIN_END)) & (data["date"] <= pd.to_datetime(CALIB_END))]
-    te = data[data["date"] > pd.to_datetime(CALIB_END)]
-    print(f"train={len(tr)} calib={len(ca)} test={len(te)}")
-
-    clf = Pipeline([("sc", StandardScaler()),
-                    ("lr", LogisticRegression(max_iter=2000, C=0.5, class_weight="balanced", random_state=SEED))])
-    clf.fit(tr[feat].values, tr["target_direction"].values)
-    iso = IsotonicRegression(out_of_bounds="clip").fit(
-        clf.predict_proba(ca[feat].values)[:, 1], ca["target_direction"].values)
-    tree = DecisionTreeClassifier(max_depth=7, min_samples_leaf=80, random_state=SEED).fit(tr[feat].values, tr["cls3"].values)
-    a1 = list(tree.classes_).index(0)
-    et = ExtraTreesRegressor(n_estimators=500, max_depth=12, min_samples_leaf=10,
-                             random_state=SEED, n_jobs=-1).fit(tr[feat].values, tr["target_vol_kd"].values)
+    tr, tu, ca, te = split(data, TRAIN_END, TUNE_END, CALIB_END)   # purged blocks (jobs/racc.py)
+    print(f"train={len(tr)} tune={len(tu)} calib={len(ca)} test={len(te)}  lambda={LAMBDA}")
+    racc_model = fit_racc(tr, tu, feat, lam=LAMBDA)       # PAV on the tuning block; lambda fixed in advance
 
     def signal(part):
-        p = iso.predict(clf.predict_proba(part[feat].values)[:, 1])
-        q = tree.predict_proba(part[feat].values)[:, a1]
-        s = 0.5 * p + 0.5 * q - 0.5          # lambda = 0.5
-        sig = et.predict(part[feat].values)
+        s, sig, _ = racc_model.score(part)
         return s, sig
 
-    # conformal thresholds from calibration
-    s_ca, sig_ca = signal(ca)
-    d_ca = np.sign(s_ca); d_ca[d_ca == 0] = 1
-    r_ca = ca["target_return_kd"].values
-    loss_ca = np.clip(np.maximum(0.0, -d_ca * r_ca) / np.maximum(sig_ca, EPS), 0, B)
-    grid = np.quantile(np.abs(s_ca), np.linspace(0, 1, 101))
-    thr = {al: crc_threshold(np.abs(s_ca), loss_ca, al, grid) for al in ALPHAS}
+    # conformal thresholds from the calibration block
+    s_ca, _, loss_ca = racc_model.score(ca)
+    thr = {al: crc_threshold(np.abs(s_ca), loss_ca, al) for al in ALPHAS}
     print("RACC thresholds:", {a: round(float(t), 4) for a, t in thr.items()})
+
+    # online thresholds: one path over the pooled test days, started from the static
+    # threshold and driven by the realised volatility-scaled loss of resolved days
+    s_te, _, loss_te = racc_model.score(te)
+    days = np.unique(te["date"].values)
+    day_te = np.searchsorted(days, te["date"].values)
+    thr_on = {al: pd.Series(online_thresholds(day_te, np.abs(s_te), loss_te, al, thr[al], GAMMA, LAG)[1], index=days)
+              for al in ALPHAS}
 
     # per-instrument daily back-test on test block
     rows = []
-    port = {"UNGATED": [], "BUY&HOLD": [], **{f"RACC@{a}": [] for a in ALPHAS}}
+    port = {"UNGATED": [], "BUY&HOLD": [], **{f"RACC@{a}": [] for a in ALPHAS},
+            **{f"ONLINE@{a}": [] for a in ALPHAS}}
     for sym in SYMBOLS:
         d = te[te["symbol"] == sym].sort_values("date")
         if len(d) < 50:
@@ -163,6 +110,8 @@ def main():
         pol = {"UNGATED": np.sign(s)}
         for al in ALPHAS:
             pol[f"RACC@{al}"] = np.sign(s) * (np.abs(s) >= thr[al])
+        for al in ALPHAS:
+            pol[f"ONLINE@{al}"] = np.sign(s) * (np.abs(s) >= thr_on[al].loc[d["date"].values].values)
         pol["BUY&HOLD"] = np.ones_like(s)
         for name, pos in pol.items():
             pos = pos.astype(float); pos[pos == 0] = 0.0 if name != "BUY&HOLD" else 1.0
@@ -174,18 +123,19 @@ def main():
             rows.append(dict(symbol=LABEL.get(sym, sym), policy=name, sharpe=round(sh, 2),
                              max_drawdown=round(mdd, 3), total_return=round(tot, 3),
                              coverage=round(cov, 2), n_changes=nch))
-            port[name].append(pnl)
+            port[name].append(pd.Series(pnl, index=d["date"].values))
 
     res = pd.DataFrame(rows)
-    res.to_csv(A / "racc_backtest.csv", index=False)
+    tag = "" if LAMBDA == 0.5 else f"_lam{LAMBDA:g}"
+    res.to_csv(A / f"racc_backtest{tag}.csv", index=False)
 
-    # portfolio = equal-weight average daily pnl across instruments
+    # portfolio = equal-weight average daily pnl across instruments, aligned by date
+    # on the trading days common to all instruments
     print("\n=== PORTFOLIO (equal-weight) ===")
-    L = min(len(x) for x in port["UNGATED"])
     eqs = {}
     psum = []
     for name, lst in port.items():
-        m = np.mean([p[:L] for p in lst], axis=0)
+        m = pd.concat(lst, axis=1, join="inner").mean(axis=1).values
         sh, mdd, tot, eq = perf(m)
         eqs[name] = eq
         cov = np.mean([np.mean(np.asarray(p) != 0) for p in lst]) if name != "BUY&HOLD" else 1.0
@@ -193,24 +143,22 @@ def main():
                          total_return=round(tot, 3), coverage=round(float(cov), 2)))
     pdf = pd.DataFrame(psum)
     print(pdf.to_string(index=False))
-    pdf.to_csv(A / "racc_backtest_portfolio.csv", index=False)
+    pdf.to_csv(A / f"racc_backtest_portfolio{tag}.csv", index=False)
 
     # equity figure
     plt.figure(figsize=(7.2, 4.6))
-    colors = {"UNGATED": "#888", "BUY&HOLD": "#999", "RACC@0.3": "#2ca02c", "RACC@0.45": "#1f77b4"}
-    style = {"BUY&HOLD": "--"}
+    colour = {"UNGATED": "#d62728", "BUY&HOLD": "#777", "RACC@0.3": "#2ca02c", "RACC@0.45": "#1f77b4",
+              "ONLINE@0.3": "#9467bd", "ONLINE@0.45": "#ff7f0e"}
+    style = {"BUY&HOLD": "--", "ONLINE@0.3": "-.", "ONLINE@0.45": "-."}
     for name, eq in eqs.items():
-        plt.plot(eq, style.get(name, "-"), lw=1.9, label=name,
-                 color={"UNGATED": "#d62728", "BUY&HOLD": "#777",
-                        "RACC@0.3": "#2ca02c", "RACC@0.45": "#1f77b4"}.get(name))
+        plt.plot(eq, style.get(name, "-"), lw=1.9, label=name, color=colour.get(name))
     plt.axhline(1.0, color="gray", lw=0.6)
     plt.xlabel("Trading day (held-out test 2024–2026)")
     plt.ylabel("Equity (start = 1.0)")
-    plt.title("Fig. 14. RACC-gated vs ungated portfolio equity")
     plt.legend(fontsize=8); plt.tight_layout()
-    plt.savefig(FIG / "fig14_racc_equity.png", dpi=150, facecolor="white"); plt.close()
+    plt.savefig(FIG / f"fig09_racc_equity{tag}.png", dpi=int(os.environ.get("FIG_DPI", "300")), facecolor="white"); plt.close()
     print(f"\n[ARTIFACT] {A/'racc_backtest.csv'}, {A/'racc_backtest_portfolio.csv'}")
-    print(f"[FIG] {FIG/'fig14_racc_equity.png'}")
+    print(f"[FIG] {FIG/'fig09_racc_equity.png'}")
 
 
 if __name__ == "__main__":

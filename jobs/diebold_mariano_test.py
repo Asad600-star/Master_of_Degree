@@ -3,8 +3,8 @@ Diebold-Mariano test (Diebold & Mariano 1995) + Harvey-Leybourne-Newbold correct
 ======================================================================================
 
 Purpose: statistically test whether the forecasts of the proposed models
-(HYBRID_VOTING, HYBRID_STACK, ExtraTrees, HYBRID_STACK_REG) are significantly better than
-the baseline models (LSTM, ARIMA, GARCH, vanilla XGB/LGBM).
+(HYBRID_VOTING, HYBRID_STACK, HYBRID_ECON_ET, ExtraTrees) are significantly better than
+the baseline models (LSTM, GARCH, HAR, vanilla XGB/LGBM, naive benchmarks).
 
 Test:
     H0: mean loss difference = 0 (models are equivalent)
@@ -35,6 +35,12 @@ from scipy import stats
 
 HORIZON_DAYS = int(os.environ.get("HORIZON_DAYS", "5"))
 ARTIFACTS_DIR = Path(os.environ.get("METRICS_DIR", "artifacts"))
+# The fold-level tests compare one metric per walk-forward fold. Consecutive test
+# blocks (126 days, step 63) overlap by half, so the loss differential of the fold
+# series is MA(1): the HAC lag of the test is h - 1 = 1, i.e. h = ceil(test / step) = 2.
+# (h = HORIZON_DAYS applies to daily forecasts of overlapping k-day targets, as in
+# jobs/volatility_models.py.)
+FOLD_H = int(np.ceil(int(os.environ.get("WF_TEST_DAYS", "126")) / int(os.environ.get("WF_STEP_DAYS", "63"))))
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -83,7 +89,8 @@ def dm_test(
     d = loss_a - loss_b
     mean_d = float(np.mean(d))
 
-    # Long-run variance using autocovariances up to lag = h-1
+    # Long-run variance using autocovariances up to lag = h-1 (gamma_0 with ddof=1,
+    # which makes the statistic slightly conservative in small samples)
     gamma_0 = float(np.var(d, ddof=1))
     var_d = gamma_0
     for k in range(1, horizon):
@@ -202,10 +209,11 @@ def get_aligned_metric(
 #   HYBRID_VOTING vs HYBRID_STACK
 #
 # Volatility (RMSE, lower is better; we use RMSE directly as the loss):
-#   EXTRATREES vs ARIMA
-#   EXTRATREES vs GARCH
-#   EXTRATREES vs HYBRID_STACK_REG
-#   EXTRATREES vs XGB, LGBM, HGB
+#   HYBRID_ECON_ET vs GARCH (both directions), GJR_GARCH, ECON, HAR, EXTRATREES
+#   GARCH, HAR vs EXTRATREES
+#   EXTRATREES vs HYBRID_STACK_REG, XGB, LGBM, HGB
+#   HYBRID_ECON_ET, EXTRATREES vs the historical mean; EXTRATREES vs persistence
+# (daily-level tests with squared-error and QLIKE losses: jobs/volatility_models.py)
 # ─────────────────────────────────────────────────────────────────────
 
 SYMBOLS = ["AAPL", "TSLA", "^GSPC", "^IXIC", "^DJI", "^RUT", "GLD", "MSFT"]
@@ -224,12 +232,27 @@ DIRECTION_COMPARISONS = [
 ]
 
 VOLATILITY_COMPARISONS = [
-    ("EXTRATREES", "ARIMA"),
-    ("EXTRATREES", "GARCH"),
+    # the system's volatility model against the econometric baselines and ExtraTrees;
+    # GARCH vs the hybrid is tested in both directions because the one-sided test only
+    # detects an advantage of model A
+    ("HYBRID_ECON_ET", "GARCH"),
+    ("GARCH", "HYBRID_ECON_ET"),
+    ("HYBRID_ECON_ET", "GJR_GARCH"),
+    ("HYBRID_ECON_ET", "ECON"),
+    ("HYBRID_ECON_ET", "HAR"),
+    ("HYBRID_ECON_ET", "EXTRATREES"),
+    ("GARCH", "EXTRATREES"),
+    ("HAR", "EXTRATREES"),
     ("EXTRATREES", "XGB"),
     ("EXTRATREES", "LGBM"),
     ("EXTRATREES", "HGB"),
     ("EXTRATREES", "HYBRID_STACK_REG"),
+    # feasible constant benchmark: the training-sample mean of the target. It is the
+    # reference for the Campbell-Thompson out-of-sample R2 and resolves the apparent
+    # conflict between a lower RMSE and a negative R2 measured against the test mean.
+    ("HYBRID_ECON_ET", "BASELINE_MEAN_TRAIN"),
+    ("EXTRATREES", "BASELINE_MEAN_TRAIN"),
+    ("EXTRATREES", "BASELINE_PERSIST"),
 ]
 
 
@@ -245,7 +268,7 @@ def run_direction_dm_tests(df_dir: pd.DataFrame) -> list[dict]:
             our_loss = -our_aucs
             base_loss = -base_aucs
             # Test: our model < baseline in loss (i.e. higher AUC)
-            res = dm_test(our_loss, base_loss, horizon=HORIZON_DAYS, alternative="less")
+            res = dm_test(our_loss, base_loss, horizon=FOLD_H, alternative="less")
             results.append({
                 "task": "direction",
                 "symbol": sym,
@@ -274,7 +297,7 @@ def run_volatility_dm_tests(df_vol: pd.DataFrame) -> list[dict]:
             if len(our_rmse) < 4 or len(base_rmse) < 4:
                 continue
             # Test: our model < baseline in loss (i.e. lower RMSE)
-            res = dm_test(our_rmse, base_rmse, horizon=HORIZON_DAYS, alternative="less")
+            res = dm_test(our_rmse, base_rmse, horizon=FOLD_H, alternative="less")
             results.append({
                 "task": "volatility",
                 "symbol": sym,
@@ -301,9 +324,9 @@ def main() -> None:
     print("=" * 70)
     print(" Diebold-Mariano test (with HLN correction)")
     print("=" * 70)
-    print(f" Horizon h = {HORIZON_DAYS}")
-    print(f" H0: models forecast equally well")
-    print(f" H1: the proposed model forecasts BETTER (one-sided)")
+    print(f" Fold-level series: h = {FOLD_H} (consecutive test blocks overlap by half)")
+    print(" H0: models forecast equally well")
+    print(" H1: the proposed model forecasts BETTER (one-sided)")
     print("=" * 70)
 
     df_dir = load_test_metrics("direction")

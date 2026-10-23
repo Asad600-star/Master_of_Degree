@@ -15,8 +15,8 @@ Run:
 
 Outputs:
     artifacts/statistical_tests.csv
-    /tmp/figs/fig10_cd_direction.png
-    /tmp/figs/fig11_cd_volatility.png
+    /tmp/figs/fig03_cd_direction.png
+    /tmp/figs/fig04_cd_volatility.png
 """
 from __future__ import annotations
 
@@ -36,15 +36,22 @@ FIG_DIR = Path(os.environ.get("FIG_DIR", "/tmp/figs"))
 TARGET = ["AAPL", "TSLA", "MSFT", "GLD", "^GSPC", "^IXIC", "^DJI", "^RUT"]
 
 # Nemenyi critical values q_alpha (alpha = 0.05), infinite degrees of freedom,
-# indexed by the number of compared models k (Demsar 2006, Table 5).
+# indexed by the number of compared models k: k <= 10 from Demsar (2006, Table 5),
+# k = 11..15 computed in the same way, as the studentized range quantile q(k, inf) / sqrt(2).
 Q05 = {2: 1.960, 3: 2.343, 4: 2.569, 5: 2.728, 6: 2.850,
        7: 2.949, 8: 3.031, 9: 3.102, 10: 3.164,
        11: 3.219, 12: 3.268, 13: 3.313, 14: 3.354, 15: 3.391}
 
 DIR_MODELS = ["HYBRID_VOTING", "HYBRID_STACK", "LSTM", "GRU", "TRANSFORMER",
               "LOGREG", "RF", "XGB", "LGBM", "HGB"]
-VOL_MODELS = ["EXTRATREES", "HYBRID_STACK_REG", "XGB", "LGBM", "HGB",
-              "LSTM", "GRU", "TRANSFORMER", "NBEATSX", "ARIMA", "GARCH"]
+VOL_MODELS = ["HYBRID_ECON_ET", "ECON", "GJR_GARCH", "GARCH", "HAR_RG", "HAR",
+              "EXTRATREES", "HYBRID_STACK_REG", "XGB", "LGBM", "HGB",
+              "LSTM", "GRU", "TRANSFORMER", "NBEATSX"]
+
+# names used in the paper
+DISPLAY = {"HYBRID_ECON_ET": "H-ECON-ET", "HYBRID_GARCH_ET": "H-GARCH-ET", "GJR_GARCH": "GJR-GARCH",
+           "HAR_RG": "HAR-RG", "EXTRATREES": "ExtraTrees", "NBEATSX": "N-BEATSx",
+           "TRANSFORMER": "Transformer", "LOGREG": "LogReg"}
 
 rows_out = []
 
@@ -76,7 +83,6 @@ def cd_diagram(avg_ranks: pd.Series, cd: float, title: str, out: Path, lower_is_
 
     yaxis = m + 1.2                      # rank axis line
     # title (top), then CD bar, then axis — no overlaps
-    ax.text((lo + hi) / 2, m + 4.0, title, ha="center", fontsize=11, fontweight="bold")
     ax.text((lo + hi) / 2, m + 3.4, f"Average rank ({lower_is_better_note})",
             ha="center", fontsize=8.5, color="#444")
 
@@ -100,11 +106,12 @@ def cd_diagram(avg_ranks: pd.Series, cd: float, title: str, out: Path, lower_is_
         rk = ranks[idx]
         ax.plot([rk, rk], [yaxis, y], "k-", lw=0.8)
         ax.plot([rk, lo - 0.3], [y, y], "k-", lw=0.8)
-        ax.text(lo - 0.4, y, f"{models[idx]}  ({rk:.2f})", ha="right", va="center", fontsize=8.5)
+        ax.text(lo - 0.4, y, f"{DISPLAY.get(models[idx], models[idx])}  ({rk:.2f})",
+                ha="right", va="center", fontsize=8.5)
 
     FIG_DIR.mkdir(parents=True, exist_ok=True)
     fig.tight_layout()
-    fig.savefig(out, dpi=150, facecolor="white")
+    fig.savefig(out, dpi=int(os.environ.get("FIG_DPI", "300")), facecolor="white")
     plt.close(fig)
 
 
@@ -153,7 +160,7 @@ def run_task(name: str, csv: str, models: list[str], metric: str, higher_better:
         })
 
     # CD diagram
-    fig_name = "fig10_cd_direction.png" if name == "direction" else "fig11_cd_volatility.png"
+    fig_name = "fig03_cd_direction.png" if name == "direction" else "fig04_cd_volatility.png"
     note = "AUC, higher better" if higher_better else "RMSE, lower better"
     cd_diagram(avg, cd, f"Critical-difference diagram — {name} ({metric})",
                FIG_DIR / fig_name, note)
